@@ -45,44 +45,50 @@ class Settings:
 
 
 def _collect_api_keys() -> list[str]:
-    """Collect up to five Gemini API keys from Streamlit Secrets or environment.
+    """Collect Gemini API keys from Streamlit Secrets or environment variables.
+
+    Supports single key names (GEMINI_API_KEY, GOOGLE_API_KEY) and
+    numbered failover keys (GEMINI_API_KEY_1 ... GEMINI_API_KEY_5).
 
     Returns:
-        Non-empty list of API key strings, in priority order.
+        List of API key strings in priority order.
     """
     keys: list[str] = []
 
-    # 1. Try Streamlit Secrets
+    def _add_key(val: Optional[str]) -> None:
+        if val:
+            cleaned = str(val).strip().strip("\"'")
+            if cleaned and cleaned not in keys:
+                keys.append(cleaned)
+
+    # 1. Try Streamlit Secrets (Streamlit Cloud injects st.secrets dynamically)
     try:
-        from pathlib import Path
         import streamlit as st  # type: ignore
 
-        secrets_exist = (
-            Path(".streamlit/secrets.toml").exists()
-            or Path("~/.streamlit/secrets.toml").expanduser().exists()
-        )
+        if hasattr(st, "secrets"):
+            for key_name in ("GEMINI_API_KEY", "GOOGLE_API_KEY"):
+                try:
+                    if key_name in st.secrets:
+                        _add_key(st.secrets[key_name])
+                except Exception:
+                    pass
 
-        if secrets_exist and hasattr(st, "secrets"):
             for index in range(1, 6):
                 key_name = f"GEMINI_API_KEY_{index}"
                 try:
                     if key_name in st.secrets:
-                        val = str(st.secrets[key_name]).strip().strip("\"'")
-                        if val and val not in keys:
-                            keys.append(val)
+                        _add_key(st.secrets[key_name])
                 except Exception:
                     pass
     except Exception:
         pass
 
     # 2. Check environment variables (.env file or system env)
+    for key_name in ("GEMINI_API_KEY", "GOOGLE_API_KEY"):
+        _add_key(os.getenv(key_name))
+
     for index in range(1, 6):
-        key_name = f"GEMINI_API_KEY_{index}"
-        val = os.getenv(key_name)
-        if val:
-            val = val.strip().strip("\"'")
-            if val and val not in keys:
-                keys.append(val)
+        _add_key(os.getenv(f"GEMINI_API_KEY_{index}"))
 
     return keys
 

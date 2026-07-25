@@ -44,63 +44,22 @@ st.set_page_config(
 
 
 # ── Resource Caching ──────────────────────────────────────────────────────────
-@st.cache_resource(show_spinner="Loading application settings...")
-def _load_settings() -> Settings:
-    return get_settings()
-
-
 @st.cache_resource(show_spinner="Loading semantic search index...")
-def _load_retriever(settings: Settings) -> Retriever:
+def _load_retriever(embedding_model: str, persist_path: str, max_docs: int, kb_path: str) -> Retriever:
     try:
         return Retriever.load(
-            embedding_model=settings.embedding_model,
-            persist_path=settings.vectorstore_path,
-            max_docs=settings.max_retrieved_docs,
+            embedding_model=embedding_model,
+            persist_path=persist_path,
+            max_docs=max_docs,
         )
     except Exception:
-        documents = load_knowledge_base(settings.knowledge_base_path)
+        documents = load_knowledge_base(kb_path)
         return Retriever.build(
             documents=documents,
-            embedding_model=settings.embedding_model,
-            persist_path=settings.vectorstore_path,
-            max_docs=settings.max_retrieved_docs,
+            embedding_model=embedding_model,
+            persist_path=persist_path,
+            max_docs=max_docs,
         )
-
-
-@st.cache_resource(show_spinner="Initialising AI Model connection...")
-def _load_api_manager(settings: Settings, custom_key: str = "") -> Optional[APIManager]:
-    keys = list(settings.gemini_api_keys)
-    if custom_key.strip():
-        keys.insert(0, custom_key.strip())
-    if not keys:
-        return None
-    # Create temporary settings with active keys
-    active_settings = Settings(
-        gemini_api_keys=keys,
-        embedding_model=settings.embedding_model,
-        gemini_model=settings.gemini_model,
-        knowledge_base_path=settings.knowledge_base_path,
-        vectorstore_path=settings.vectorstore_path,
-        max_retrieved_docs=settings.max_retrieved_docs,
-        retriever_score_threshold=settings.retriever_score_threshold,
-    )
-    return APIManager(settings=active_settings)
-
-
-@st.cache_resource(show_spinner="Readying translation pipeline...")
-def _load_pipeline(
-    settings: Settings,
-    _retriever: Retriever,
-    _api_manager: Optional[APIManager],
-) -> Optional[RAGPipeline]:
-    if _api_manager is None:
-        return None
-    return RAGPipeline(
-        detector=LanguageDetector(),
-        retriever=_retriever,
-        prompt_builder=PromptBuilder(max_context_docs=settings.max_retrieved_docs),
-        api_manager=_api_manager,
-    )
 
 
 # ── Session State ─────────────────────────────────────────────────────────────
@@ -112,8 +71,13 @@ if "custom_api_key" not in st.session_state:
 
 # ── Main Application ──────────────────────────────────────────────────────────
 def main() -> None:
-    settings = _load_settings()
-    retriever = _load_retriever(settings)
+    settings = get_settings()
+    retriever = _load_retriever(
+        embedding_model=settings.embedding_model,
+        persist_path=settings.vectorstore_path,
+        max_docs=settings.max_retrieved_docs,
+        kb_path=settings.knowledge_base_path,
+    )
 
     # ── Sidebar Controls ──
     with st.sidebar:
@@ -139,18 +103,34 @@ def main() -> None:
 
         env_keys_count = len(settings.gemini_api_keys)
         if env_keys_count > 0:
-            st.success(f"✅ {env_keys_count} key(s) detected from environment")
+            st.success(f"✅ {env_keys_count} key(s) loaded from Secrets/Environment")
+        else:
+            st.info("ℹ️ No default key found in Secrets or .env")
 
         user_key = st.text_input(
-            "Gemini API Key (Optional)",
+            "Gemini API Key (Public / Custom)",
             type="password",
             value=st.session_state.custom_api_key,
-            help="Enter key if not configured in secrets or .env",
+            help="Enter your Gemini API key here to use the public app",
             key="user_key_input",
         )
         if user_key != st.session_state.custom_api_key:
             st.session_state.custom_api_key = user_key
             st.rerun()
+
+        with st.expander("☁️ Cloud Deployment Secrets Help"):
+            st.markdown(
+                """
+                **How to set secrets in Streamlit Cloud:**
+                1. Go to your app's dashboard on [streamlit.io](https://share.streamlit.io/)
+                2. Click **Settings** ➔ **Secrets**
+                3. Add your key:
+                ```toml
+                GEMINI_API_KEY = "your-api-key-here"
+                ```
+                *(Or `GEMINI_API_KEY_1`, `GEMINI_API_KEY_2` for failover)*
+                """
+            )
 
         st.divider()
         st.subheader("📊 Session")
@@ -161,9 +141,34 @@ def main() -> None:
 
         st.caption("Ready for Streamlit Cloud Deployment")
 
-    # Wire API Manager and Pipeline
-    api_manager = _load_api_manager(settings, st.session_state.custom_api_key)
-    pipeline = _load_pipeline(settings, retriever, api_manager)
+    # Assemble active keys pool (custom user key first, followed by environment/secrets keys)
+    active_keys: list[str] = []
+    if st.session_state.custom_api_key.strip():
+        active_keys.append(st.session_state.custom_api_key.strip())
+    for k in settings.gemini_api_keys:
+        if k not in active_keys:
+            active_keys.append(k)
+
+    # Instantiate pipeline dynamically with current active keys
+    if active_keys:
+        active_settings = Settings(
+            gemini_api_keys=active_keys,
+            embedding_model=settings.embedding_model,
+            gemini_model=settings.gemini_model,
+            knowledge_base_path=settings.knowledge_base_path,
+            vectorstore_path=settings.vectorstore_path,
+            max_retrieved_docs=settings.max_retrieved_docs,
+            retriever_score_threshold=settings.retriever_score_threshold,
+        )
+        api_manager = APIManager(settings=active_settings)
+        pipeline = RAGPipeline(
+            detector=LanguageDetector(),
+            retriever=retriever,
+            prompt_builder=PromptBuilder(max_context_docs=settings.max_retrieved_docs),
+            api_manager=api_manager,
+        )
+    else:
+        pipeline = None
 
     # ── Header ──
     st.title("🔀 Corporate ↔ Gen Z AI Translator")

@@ -116,6 +116,9 @@ The FAISS index is built automatically on first run and cached for subsequent st
 4. Open **Advanced settings → Secrets** and add:
 
 ```toml
+GEMINI_API_KEY = "your-primary-gemini-key"
+
+# Optional failover keys:
 GEMINI_API_KEY_1 = "your-key-1"
 GEMINI_API_KEY_2 = "your-key-2"
 # … up to GEMINI_API_KEY_5
