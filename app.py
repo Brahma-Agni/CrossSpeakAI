@@ -118,20 +118,6 @@ def main() -> None:
             st.session_state.custom_api_key = user_key
             st.rerun()
 
-        with st.expander("☁️ Cloud Deployment Secrets Help"):
-            st.markdown(
-                """
-                **How to set secrets in Streamlit Cloud:**
-                1. Go to your app's dashboard on [streamlit.io](https://share.streamlit.io/)
-                2. Click **Settings** ➔ **Secrets**
-                3. Add your key:
-                ```toml
-                GEMINI_API_KEY = "your-api-key-here"
-                ```
-                *(Or `GEMINI_API_KEY_1`, `GEMINI_API_KEY_2` for failover)*
-                """
-            )
-
         st.divider()
         st.subheader("📊 Session")
         st.metric("Translations Done", len(st.session_state.history))
