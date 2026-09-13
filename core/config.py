@@ -21,9 +21,8 @@ class Settings:
     """Immutable application configuration.
 
     Reads values from environment variables with fallbacks.
-    On Streamlit Cloud, secrets are injected as environment variables
-    automatically when using st.secrets, but this class supports
-    both mechanisms transparently.
+    On Streamlit Cloud, values are read from ``st.secrets``; locally,
+    environment variables and ``.env`` values are supported.
 
     Attributes:
         gemini_api_keys: Ordered list of Gemini API keys for failover.
@@ -98,6 +97,18 @@ def _collect_api_keys() -> list[str]:
     return keys
 
 
+def _setting(name: str, default: str = "") -> str:
+    """Read one setting from Streamlit Secrets, then the environment."""
+    try:
+        import streamlit as st  # type: ignore
+
+        if name in st.secrets:
+            return str(st.secrets[name]).strip()
+    except Exception:
+        pass
+    return os.getenv(name, default).strip()
+
+
 def get_settings() -> Settings:
     """Build and return the application Settings singleton.
 
@@ -114,27 +125,23 @@ def get_settings() -> Settings:
 
     return Settings(
         gemini_api_keys=api_keys,
-        embedding_model=os.getenv("EMBEDDING_MODEL", "all-MiniLM-L6-v2"),
-        gemini_model=os.getenv("GEMINI_MODEL", "gemini-1.5-flash"),
-        knowledge_base_path=os.getenv(
+        embedding_model=_setting("EMBEDDING_MODEL", "all-MiniLM-L6-v2"),
+        gemini_model=_setting("GEMINI_MODEL", "gemini-1.5-flash"),
+        knowledge_base_path=_setting(
             "KNOWLEDGE_BASE_PATH", "data/knowledge_base.csv"
         ),
-        vectorstore_path=os.getenv("VECTORSTORE_PATH", "vectorstore/faiss_index"),
-        max_retrieved_docs=int(os.getenv("MAX_RETRIEVED_DOCS", "6")),
+        vectorstore_path=_setting("VECTORSTORE_PATH", "vectorstore/faiss_index"),
+        max_retrieved_docs=int(_setting("MAX_RETRIEVED_DOCS", "6")),
         retriever_score_threshold=float(
-            os.getenv("RETRIEVER_SCORE_THRESHOLD", "0.3")
+            _setting("RETRIEVER_SCORE_THRESHOLD", "0.3")
         ),
-        supabase_url=os.getenv("SUPABASE_URL", "").strip(),
-        supabase_publishable_key=os.getenv(
-            "SUPABASE_PUBLISHABLE_KEY", ""
-        ).strip(),
-        supabase_enabled=os.getenv("SUPABASE_ENABLED", "false").strip().lower()
+        supabase_url=_setting("SUPABASE_URL"),
+        supabase_publishable_key=_setting("SUPABASE_PUBLISHABLE_KEY"),
+        supabase_enabled=_setting("SUPABASE_ENABLED", "false").lower()
         in {"1", "true", "yes", "on"},
-        dynamic_kb_enabled=os.getenv(
-            "DYNAMIC_KB_ENABLED", "false"
-        ).strip().lower()
+        dynamic_kb_enabled=_setting("DYNAMIC_KB_ENABLED", "false").lower()
         in {"1", "true", "yes", "on"},
         conversation_memory_turns=int(
-            os.getenv("CONVERSATION_MEMORY_TURNS", "4")
+            _setting("CONVERSATION_MEMORY_TURNS", "4")
         ),
     )

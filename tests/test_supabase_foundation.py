@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import os
+import sys
+from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
 
@@ -36,6 +38,24 @@ class SupabaseFoundationTests(unittest.TestCase):
             settings = get_settings()
         with self.assertRaisesRegex(RuntimeError, "disabled"):
             create_user_client(settings)
+
+    def test_streamlit_secrets_enable_integration(self) -> None:
+        fake_streamlit = SimpleNamespace(
+            secrets={
+                "SUPABASE_ENABLED": True,
+                "SUPABASE_URL": "https://example.supabase.co",
+                "SUPABASE_PUBLISHABLE_KEY": "publishable-key",
+                "DYNAMIC_KB_ENABLED": True,
+            }
+        )
+        with patch.dict(
+            os.environ, self._without_supabase_environment(), clear=True
+        ), patch.dict(sys.modules, {"streamlit": fake_streamlit}):
+            settings = get_settings()
+
+        self.assertTrue(settings.supabase_enabled)
+        self.assertTrue(settings.dynamic_kb_enabled)
+        self.assertEqual(settings.supabase_url, "https://example.supabase.co")
 
 
 if __name__ == "__main__":
