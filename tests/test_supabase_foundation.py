@@ -10,6 +10,7 @@ from unittest.mock import patch
 
 from core.config import get_settings
 from core.supabase_client import create_user_client
+from streamlit.testing.v1 import AppTest
 
 
 class SupabaseFoundationTests(unittest.TestCase):
@@ -56,6 +57,15 @@ class SupabaseFoundationTests(unittest.TestCase):
         self.assertTrue(settings.supabase_enabled)
         self.assertTrue(settings.dynamic_kb_enabled)
         self.assertEqual(settings.supabase_url, "https://example.supabase.co")
+
+    def test_enabled_integration_blocks_anonymous_app_access(self) -> None:
+        environment = self._without_supabase_environment()
+        environment["SUPABASE_ENABLED"] = "true"
+        with patch.dict(os.environ, environment, clear=True):
+            app = AppTest.from_file("app.py").run(timeout=10)
+
+        self.assertEqual(len(app.tabs), 0)
+        self.assertIn("Sign in or register", app.caption[0].value)
 
 
 if __name__ == "__main__":

@@ -76,13 +76,19 @@ for _key, _default in _SESSION_DEFAULTS.items():
 
 def main() -> None:
     settings = get_settings()
+    store, supabase_error = _get_store(settings)
+    if settings.supabase_enabled and st.session_state.auth_user is None:
+        st.title("🔀 Cross Speak AI")
+        st.caption("Sign in or register to access the translator.")
+        _render_account(store, supabase_error)
+        return
+
     retriever = _load_retriever(
         embedding_model=settings.embedding_model,
         persist_path=settings.vectorstore_path,
         max_docs=settings.max_retrieved_docs,
         kb_path=settings.knowledge_base_path,
     )
-    store, supabase_error = _get_store(settings)
 
     with st.sidebar:
         st.title("🔀 Cross Speak AI")
