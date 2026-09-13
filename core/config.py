@@ -42,6 +42,9 @@ class Settings:
     vectorstore_path: str = "vectorstore/faiss_index"
     max_retrieved_docs: int = 6
     retriever_score_threshold: float = 0.3
+    supabase_url: str = ""
+    supabase_publishable_key: str = ""
+    supabase_enabled: bool = False
 
 
 def _collect_api_keys() -> list[str]:
@@ -119,4 +122,10 @@ def get_settings() -> Settings:
         retriever_score_threshold=float(
             os.getenv("RETRIEVER_SCORE_THRESHOLD", "0.3")
         ),
+        supabase_url=os.getenv("SUPABASE_URL", "").strip(),
+        supabase_publishable_key=os.getenv(
+            "SUPABASE_PUBLISHABLE_KEY", ""
+        ).strip(),
+        supabase_enabled=os.getenv("SUPABASE_ENABLED", "false").strip().lower()
+        in {"1", "true", "yes", "on"},
     )

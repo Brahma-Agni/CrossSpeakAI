@@ -26,3 +26,6 @@ numpy>=1.26.0,<3.0.0
 
 # ── Utilities ──────────────────────────────────────
 python-dotenv>=1.0.0,<2.0.0
+
+# ── Optional managed persistence/authentication ─────
+supabase>=2.18.0,<3.0.0

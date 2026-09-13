@@ -141,6 +141,21 @@ GEMINI_API_KEY_2 = "your-key-2"
 | `VECTORSTORE_PATH` | `vectorstore/faiss_index` | FAISS index persistence directory |
 | `MAX_RETRIEVED_DOCS` | `6` | Max documents per retrieval call |
 | `RETRIEVER_SCORE_THRESHOLD` | `0.3` | FAISS L2 similarity threshold |
+| `SUPABASE_ENABLED` | `false` | Enables the optional Supabase foundation |
+| `SUPABASE_URL` | — | Supabase project URL |
+| `SUPABASE_PUBLISHABLE_KEY` | — | RLS-constrained Supabase publishable key |
+
+### Supabase foundation
+
+The integration is disabled by default, so the existing public translator does
+not make any Supabase requests. To prepare an environment:
+
+1. Apply `supabase/migrations/001_initial_schema.sql` in the Supabase SQL editor.
+2. Add `SUPABASE_URL` and `SUPABASE_PUBLISHABLE_KEY` to Streamlit Secrets.
+3. Set `SUPABASE_ENABLED=true` only when account features are ready to test.
+
+Never add a Supabase secret key to this application. Authenticated clients must
+be created per Streamlit user session and must not be globally cached.
 
 ---
 
