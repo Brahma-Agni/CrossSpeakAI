@@ -42,6 +42,7 @@ class Retriever:
     def __init__(
         self,
         vector_store: FAISS,
+        embeddings: HuggingFaceEmbeddings,
         max_docs: int = 6,
     ) -> None:
         """Initialise the retriever with an existing FAISS vector store.
@@ -54,6 +55,7 @@ class Retriever:
             max_docs: Maximum documents returned per retrieval call.
         """
         self._vector_store: FAISS = vector_store
+        self._embeddings = embeddings
         self._max_docs: int = max_docs
         logger.debug("Retriever ready (max_docs=%d).", self._max_docs)
 
@@ -103,7 +105,11 @@ class Retriever:
         vector_store.save_local(str(persist_dir))
 
         logger.info("FAISS index saved to '%s'.", persist_dir)
-        return cls(vector_store=vector_store, max_docs=max_docs)
+        return cls(
+            vector_store=vector_store,
+            embeddings=embeddings,
+            max_docs=max_docs,
+        )
 
     @classmethod
     def load(
@@ -148,7 +154,15 @@ class Retriever:
         )
 
         logger.info("FAISS index loaded successfully.")
-        return cls(vector_store=vector_store, max_docs=max_docs)
+        return cls(
+            vector_store=vector_store,
+            embeddings=embeddings,
+            max_docs=max_docs,
+        )
+
+    def embed_text(self, text: str) -> list[float]:
+        """Embed text with the same normalized 384-d model used by FAISS."""
+        return [float(value) for value in self._embeddings.embed_query(text)]
 
     def retrieve(
         self,

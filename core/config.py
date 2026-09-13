@@ -45,6 +45,8 @@ class Settings:
     supabase_url: str = ""
     supabase_publishable_key: str = ""
     supabase_enabled: bool = False
+    dynamic_kb_enabled: bool = False
+    conversation_memory_turns: int = 4
 
 
 def _collect_api_keys() -> list[str]:
@@ -128,4 +130,11 @@ def get_settings() -> Settings:
         ).strip(),
         supabase_enabled=os.getenv("SUPABASE_ENABLED", "false").strip().lower()
         in {"1", "true", "yes", "on"},
+        dynamic_kb_enabled=os.getenv(
+            "DYNAMIC_KB_ENABLED", "false"
+        ).strip().lower()
+        in {"1", "true", "yes", "on"},
+        conversation_memory_turns=int(
+            os.getenv("CONVERSATION_MEMORY_TURNS", "4")
+        ),
     )

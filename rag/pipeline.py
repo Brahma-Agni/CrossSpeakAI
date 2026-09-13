@@ -15,7 +15,7 @@ from __future__ import annotations
 import json
 import re
 from dataclasses import dataclass
-from typing import Any, Optional
+from typing import Any, Callable, Optional
 
 from langchain_core.documents import Document  # type: ignore
 
@@ -73,6 +73,7 @@ class RAGPipeline:
         retriever: Retriever,
         prompt_builder: PromptBuilder,
         api_manager: APIManager,
+        extra_retriever: Optional[Callable[[str], list[Document]]] = None,
     ) -> None:
         """Initialise the pipeline with all required components.
 
@@ -86,6 +87,7 @@ class RAGPipeline:
         self._retriever = retriever
         self._prompt_builder = prompt_builder
         self._api_manager = api_manager
+        self._extra_retriever = extra_retriever
         logger.info("RAGPipeline initialised and ready.")
 
     def translate(
@@ -93,6 +95,7 @@ class RAGPipeline:
         user_input: str,
         translation_mode: str = "auto",
         score_threshold: float = 0.3,
+        conversation_context: Optional[list[dict[str, str]]] = None,
     ) -> TranslationResult:
         """Run the full RAG translation pipeline on the user's input.
 
@@ -129,6 +132,11 @@ class RAGPipeline:
                 query=user_input,
                 score_threshold=score_threshold,
             )
+            if self._extra_retriever is not None:
+                retrieved_docs = self._merge_documents(
+                    retrieved_docs,
+                    self._extra_retriever(user_input),
+                )
             logger.info("Retrieved %d context document(s).", len(retrieved_docs))
 
             # Step 3: Build structured prompt
@@ -137,6 +145,7 @@ class RAGPipeline:
                 retrieved_docs=retrieved_docs,
                 source_style=source_style,
                 translation_mode=translation_mode,
+                conversation_context=conversation_context,
             )
 
             # Step 4: Call Gemini LLM with failover
@@ -170,6 +179,20 @@ class RAGPipeline:
                 raw_response="",
                 error=f"Translation failed: {type(exc).__name__} — {exc}",
             )
+
+    @staticmethod
+    def _merge_documents(
+        local_docs: list[Document], remote_docs: list[Document]
+    ) -> list[Document]:
+        """Merge ranked results while removing duplicate terms."""
+        merged: list[Document] = []
+        seen: set[str] = set()
+        for doc in [*remote_docs, *local_docs]:
+            key = str(doc.metadata.get("term", doc.page_content)).strip().lower()
+            if key not in seen:
+                seen.add(key)
+                merged.append(doc)
+        return merged
 
     @staticmethod
     def _parse_llm_response(raw: str) -> dict[str, Any]:

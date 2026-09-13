@@ -67,6 +67,7 @@ class PromptBuilder:
         retrieved_docs: list[Document],
         source_style: LanguageStyle,
         translation_mode: str = "auto",
+        conversation_context: list[dict[str, str]] | None = None,
     ) -> str:
         """Build a complete translation prompt ready to send to the LLM.
 
@@ -91,6 +92,7 @@ class PromptBuilder:
         source_label, target_label = self._resolve_labels(
             source_style, translation_mode
         )
+        memory_block = self._build_memory_block(conversation_context or [])
 
         prompt = f"""You are CrossSpeakAI, an expert bilingual translator \
 specialising in Corporate English and Gen Z Slang.
@@ -103,6 +105,9 @@ Translate the following text from {source_label} into {target_label}.
 
 ## DETECTED STYLE
 The input has been detected as: {source_style.value}
+
+## RECENT CONVERSATION
+{memory_block}
 
 ## CONTEXT — KNOWLEDGE BASE EXCERPTS
 The following terminology definitions have been retrieved from the \
@@ -139,6 +144,18 @@ Return ONLY the following JSON object — no markdown fences, no extra text:
             len(retrieved_docs[: self._max_context_docs]),
         )
         return prompt
+
+    @staticmethod
+    def _build_memory_block(turns: list[dict[str, str]]) -> str:
+        if not turns:
+            return "No previous conversation turns."
+        sections: list[str] = []
+        for turn in turns:
+            sections.append(
+                f"User: {turn.get('input_text', '')}\n"
+                f"Assistant: {turn.get('output_text', '')}"
+            )
+        return "\n\n".join(sections)
 
     def _resolve_labels(
         self, source_style: LanguageStyle, translation_mode: str

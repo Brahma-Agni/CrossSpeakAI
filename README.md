@@ -144,15 +144,18 @@ GEMINI_API_KEY_2 = "your-key-2"
 | `SUPABASE_ENABLED` | `false` | Enables the optional Supabase foundation |
 | `SUPABASE_URL` | — | Supabase project URL |
 | `SUPABASE_PUBLISHABLE_KEY` | — | RLS-constrained Supabase publishable key |
+| `DYNAMIC_KB_ENABLED` | `false` | Includes approved Supabase terms in RAG |
+| `CONVERSATION_MEMORY_TURNS` | `4` | Recent saved turns included in prompts |
 
 ### Supabase foundation
 
 The integration is disabled by default, so the existing public translator does
 not make any Supabase requests. To prepare an environment:
 
-1. Apply `supabase/migrations/001_initial_schema.sql` in the Supabase SQL editor.
+1. Apply the numbered SQL files in `supabase/migrations/` in order.
 2. Add `SUPABASE_URL` and `SUPABASE_PUBLISHABLE_KEY` to Streamlit Secrets.
-3. Set `SUPABASE_ENABLED=true` only when account features are ready to test.
+3. Set `SUPABASE_ENABLED=true` to enable accounts, history, and suggestions.
+4. Set `DYNAMIC_KB_ENABLED=true` after migration 002 is applied.
 
 Never add a Supabase secret key to this application. Authenticated clients must
 be created per Streamlit user session and must not be globally cached.
