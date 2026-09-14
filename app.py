@@ -30,7 +30,7 @@ logger = get_logger(__name__)
 
 st.set_page_config(
     page_title="Cross Speak AI",
-    page_icon="🔀",
+    page_icon="↔",
     layout="wide",
     initial_sidebar_state="expanded",
 )
@@ -68,19 +68,192 @@ _SESSION_DEFAULTS: dict[str, Any] = {
     "auth_user": None,
     "user_role": "user",
     "conversation_id": None,
+    "dark_mode": False,
 }
 for _key, _default in _SESSION_DEFAULTS.items():
     if _key not in st.session_state:
         st.session_state[_key] = _default
 
 
+def _render_brand_and_theme() -> None:
+    with st.sidebar:
+        st.markdown(
+            """
+            <div class="brand-lockup">
+                <div class="brand-mark">CS</div>
+                <div>
+                    <div class="brand-name">Cross Speak AI</div>
+                    <div class="brand-tagline">Dialect intelligence platform</div>
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+        dark_mode = st.toggle("Dark mode", value=st.session_state.dark_mode)
+        if dark_mode != st.session_state.dark_mode:
+            st.session_state.dark_mode = dark_mode
+            st.rerun()
+        st.divider()
+
+
+def _apply_theme(dark_mode: bool) -> None:
+    colours = (
+        {
+            "background": "#0b1120",
+            "surface": "#111827",
+            "surface_alt": "#182235",
+            "text": "#e8edf5",
+            "muted": "#9aa8bc",
+            "border": "#273449",
+            "accent": "#7c9cff",
+            "accent_hover": "#91acff",
+            "sidebar": "#0e1627",
+            "shadow": "rgba(0, 0, 0, 0.28)",
+        }
+        if dark_mode
+        else {
+            "background": "#f4f7fb",
+            "surface": "#ffffff",
+            "surface_alt": "#f8fafc",
+            "text": "#172033",
+            "muted": "#64748b",
+            "border": "#dce3ed",
+            "accent": "#315be8",
+            "accent_hover": "#2449c4",
+            "sidebar": "#ffffff",
+            "shadow": "rgba(31, 45, 72, 0.08)",
+        }
+    )
+    st.markdown(
+        f"""
+        <style>
+        :root {{
+            --cs-bg: {colours['background']};
+            --cs-surface: {colours['surface']};
+            --cs-surface-alt: {colours['surface_alt']};
+            --cs-text: {colours['text']};
+            --cs-muted: {colours['muted']};
+            --cs-border: {colours['border']};
+            --cs-accent: {colours['accent']};
+            --cs-accent-hover: {colours['accent_hover']};
+            --cs-sidebar: {colours['sidebar']};
+            --cs-shadow: {colours['shadow']};
+        }}
+        [data-testid="stAppViewContainer"] {{
+            background: var(--cs-bg);
+            color: var(--cs-text);
+        }}
+        [data-testid="stHeader"] {{ background: transparent; }}
+        [data-testid="stSidebar"] > div:first-child {{
+            background: var(--cs-sidebar);
+            border-right: 1px solid var(--cs-border);
+        }}
+        [data-testid="stMainBlockContainer"] {{
+            max-width: 1240px;
+            padding-top: 3.25rem;
+            padding-bottom: 4rem;
+        }}
+        h1, h2, h3, h4, h5, h6, p, label,
+        [data-testid="stMarkdownContainer"] {{ color: var(--cs-text); }}
+        .stCaptionContainer, [data-testid="stCaptionContainer"] {{
+            color: var(--cs-muted) !important;
+        }}
+        .brand-lockup {{
+            display: flex;
+            align-items: center;
+            gap: .75rem;
+            margin: .25rem 0 1rem;
+        }}
+        .brand-mark {{
+            display: grid;
+            place-items: center;
+            width: 2.5rem;
+            height: 2.5rem;
+            border-radius: .7rem;
+            background: linear-gradient(135deg, var(--cs-accent), #7c3aed);
+            color: white;
+            font-size: .82rem;
+            font-weight: 750;
+            letter-spacing: .04em;
+            box-shadow: 0 8px 20px var(--cs-shadow);
+        }}
+        .brand-name {{ color: var(--cs-text); font-weight: 720; line-height: 1.2; }}
+        .brand-tagline {{ color: var(--cs-muted); font-size: .73rem; margin-top: .12rem; }}
+        .eyebrow, .auth-kicker {{
+            color: var(--cs-accent);
+            font-size: .72rem;
+            font-weight: 750;
+            letter-spacing: .14em;
+            margin-bottom: .55rem;
+        }}
+        div[data-testid="stForm"], div[data-testid="stExpander"] {{
+            background: var(--cs-surface);
+            border: 1px solid var(--cs-border);
+            border-radius: .9rem;
+            box-shadow: 0 8px 28px var(--cs-shadow);
+        }}
+        div[data-baseweb="input"] > div,
+        div[data-baseweb="textarea"] > div,
+        div[data-baseweb="select"] > div {{
+            background: var(--cs-surface) !important;
+            border-color: var(--cs-border) !important;
+            color: var(--cs-text) !important;
+        }}
+        input, textarea {{ color: var(--cs-text) !important; }}
+        input::placeholder, textarea::placeholder {{ color: var(--cs-muted) !important; }}
+        div[data-testid="stButton"] button,
+        div[data-testid="stFormSubmitButton"] button {{
+            border-radius: .65rem;
+            border-color: var(--cs-border);
+            font-weight: 650;
+            transition: all .15s ease;
+        }}
+        div[data-testid="stButton"] button[kind="primary"],
+        div[data-testid="stFormSubmitButton"] button[kind="primary"] {{
+            background: var(--cs-accent);
+            border-color: var(--cs-accent);
+            color: white;
+        }}
+        div[data-testid="stButton"] button[kind="primary"]:hover,
+        div[data-testid="stFormSubmitButton"] button[kind="primary"]:hover {{
+            background: var(--cs-accent-hover);
+            border-color: var(--cs-accent-hover);
+        }}
+        button[data-baseweb="tab"] {{
+            color: var(--cs-muted);
+            font-weight: 650;
+        }}
+        button[data-baseweb="tab"][aria-selected="true"] {{ color: var(--cs-accent); }}
+        div[data-testid="stMetric"] {{
+            background: var(--cs-surface-alt);
+            border: 1px solid var(--cs-border);
+            border-radius: .75rem;
+            padding: .7rem .8rem;
+        }}
+        hr {{ border-color: var(--cs-border) !important; }}
+        [data-testid="stDataFrame"] {{
+            border: 1px solid var(--cs-border);
+            border-radius: .75rem;
+            overflow: hidden;
+        }}
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
 def main() -> None:
     settings = get_settings()
     store, supabase_error = _get_store(settings)
+    _render_brand_and_theme()
+    _apply_theme(st.session_state.dark_mode)
     if settings.supabase_enabled and st.session_state.auth_user is None:
-        st.title("🔀 Cross Speak AI")
-        st.caption("Sign in or register to access the translator.")
-        _render_account(store, supabase_error)
+        left, centre, right = st.columns([1, 2, 1])
+        with centre:
+            st.markdown("<div class='auth-kicker'>SECURE WORKSPACE</div>", unsafe_allow_html=True)
+            st.title("Welcome to Cross Speak AI")
+            st.caption("Sign in or register to access the translator.")
+            _render_account(store, supabase_error)
         return
 
     retriever = _load_retriever(
@@ -91,17 +264,15 @@ def main() -> None:
     )
 
     with st.sidebar:
-        st.title("🔀 Cross Speak AI")
-        st.caption("RAG-Powered Dialect Translator")
         if settings.supabase_enabled:
             _render_account(store, supabase_error)
         st.divider()
 
-        st.subheader("⚙️ Settings")
+        st.subheader("Translation settings")
         mode_options = {
-            "🤖 Auto-Detect Style": "auto",
-            "🏢 Corporate → Gen Z Slang": "corporate_to_genz",
-            "✌️ Gen Z Slang → Corporate": "genz_to_corporate",
+            "Auto-detect style": "auto",
+            "Corporate to Gen Z": "corporate_to_genz",
+            "Gen Z to Corporate": "genz_to_corporate",
         }
         selected_mode_label = st.radio(
             "Translation Mode", options=list(mode_options), index=0
@@ -109,16 +280,15 @@ def main() -> None:
         translation_mode = mode_options[selected_mode_label]
 
         st.divider()
-        st.subheader("🔑 API Key Setup")
+        st.subheader("AI service")
         if settings.gemini_api_keys:
             st.success(
-                f"✅ {len(settings.gemini_api_keys)} key(s) loaded from "
-                "Secrets/Environment"
+                f"Connected with {len(settings.gemini_api_keys)} available keys"
             )
         else:
-            st.info("ℹ️ No default key found in Secrets or .env")
+            st.info("No shared API key is configured")
         user_key = st.text_input(
-            "Gemini API Key (Public / Custom)",
+            "Personal Gemini API key (optional)",
             type="password",
             value=st.session_state.custom_api_key,
             help="Enter your Gemini API key here to use the public app",
@@ -129,7 +299,7 @@ def main() -> None:
             st.rerun()
 
         st.divider()
-        st.subheader("📊 Session")
+        st.subheader("Current session")
         st.metric("Translations Done", len(st.session_state.history))
         if st.button("Clear Session History", use_container_width=True):
             st.session_state.history = []
@@ -144,7 +314,7 @@ def main() -> None:
                     st.rerun()
                 except Exception as exc:
                     st.error(_friendly_error(exc))
-        st.caption("Ready for Streamlit Cloud Deployment")
+        st.caption("Secure staging environment")
 
     active_keys: list[str] = []
     if st.session_state.custom_api_key.strip():
@@ -174,21 +344,22 @@ def main() -> None:
             extra_retriever=_remote_retriever(settings, store, retriever),
         )
 
-    st.title("🔀 Corporate ↔ Gen Z AI Translator")
+    st.markdown("<div class='eyebrow'>AI LANGUAGE WORKSPACE</div>", unsafe_allow_html=True)
+    st.title("Corporate and Gen Z Translator")
     st.markdown(
         "Bridge the communication gap between executive business speak and "
         "Gen Z slang using Retrieval-Augmented Generation (RAG)."
     )
     st.divider()
 
-    labels = ["✨ Translate", "📜 History", "📚 Knowledge Base"]
+    labels = ["Translate", "History", "Knowledge Base"]
     if settings.supabase_enabled:
-        labels.append("💡 Suggest Slang")
+        labels.append("Suggest Slang")
         if (
             st.session_state.auth_user is not None
             and st.session_state.user_role == "admin"
         ):
-            labels.append("🛡️ Admin Review")
+            labels.append("Admin Review")
     tabs = st.tabs(labels)
 
     with tabs[0]:
@@ -224,7 +395,7 @@ def _get_store(settings: Settings) -> tuple[Optional[SupabaseStore], Optional[st
 def _render_account(
     store: Optional[SupabaseStore], supabase_error: Optional[str]
 ) -> None:
-    st.subheader("👤 Account")
+    st.subheader("Account")
     if supabase_error or store is None:
         st.warning(supabase_error or "Account service is unavailable.")
         return
@@ -315,7 +486,7 @@ def _render_translate(
 ) -> None:
     if pipeline is None:
         st.warning(
-            "🔑 **API Key Required**: Enter a Gemini API Key in the sidebar "
+            "**API key required:** Enter a Gemini API key in the sidebar "
             "or configure one in Streamlit Secrets."
         )
     col_in, col_out = st.columns(2)
@@ -323,18 +494,18 @@ def _render_translate(
         st.subheader("Input Text")
         st.caption("Quick sample presets:")
         ex_col1, ex_col2, ex_col3 = st.columns(3)
-        if ex_col1.button("🏢 Corporate", use_container_width=True):
+        if ex_col1.button("Corporate", use_container_width=True):
             st.session_state.input_text = (
                 "Let's leverage our core competencies to move the needle on "
                 "this deliverable."
             )
             st.rerun()
-        if ex_col2.button("✌️ Gen Z", use_container_width=True):
+        if ex_col2.button("Gen Z", use_container_width=True):
             st.session_state.input_text = (
                 "No cap that proposal slapped fr, she ate and left no crumbs."
             )
             st.rerun()
-        if ex_col3.button("🔀 Mixed", use_container_width=True):
+        if ex_col3.button("Mixed", use_container_width=True):
             st.session_state.input_text = (
                 "We need to circle back on this lowkey sus action item by EOD."
             )
@@ -349,7 +520,7 @@ def _render_translate(
         )
         st.session_state.input_text = sample_text
         translate = st.button(
-            "🚀 Translate Now",
+            "Translate now",
             type="primary",
             disabled=(pipeline is None or not sample_text.strip()),
             use_container_width=True,
@@ -648,7 +819,7 @@ def _display_result(result: TranslationResult) -> None:
     st.success(f"**{result.translation_direction}** ({result.detected_style})")
     st.markdown(f"### {result.translation}")
     if result.terms_used:
-        with st.expander("📖 Glossary & Grounded Terms", expanded=True):
+        with st.expander("Glossary and grounded terms", expanded=True):
             columns = st.columns(
                 len(result.terms_used) if len(result.terms_used) <= 3 else 3
             )
@@ -656,11 +827,11 @@ def _display_result(result: TranslationResult) -> None:
                 with columns[index % len(columns)]:
                     st.markdown(
                         f"**{term.get('original')}**  \n"
-                        f"↳ *{term.get('translated')}*"
+                        f"*{term.get('translated')}*"
                     )
     if result.retrieved_docs:
         with st.expander(
-            f"🔍 RAG Retrieved Context ({len(result.retrieved_docs)} items)",
+            f"Retrieved context ({len(result.retrieved_docs)} items)",
             expanded=False,
         ):
             for document in result.retrieved_docs:
