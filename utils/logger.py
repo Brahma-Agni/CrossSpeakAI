@@ -32,7 +32,7 @@ def _configure_root_logger() -> None:
 
     root = logging.getLogger()
     root.setLevel(logging.INFO)
-    # Avoid duplicate handlers if called multiple times (Streamlit reloads)
+    # Avoid duplicate handlers when modules are reloaded.
     if not any(isinstance(h, logging.StreamHandler) for h in root.handlers):
         root.addHandler(handler)
 

@@ -75,7 +75,7 @@ class PromptBuilder:
             user_input:
                 The raw text the user wants translated.
             retrieved_docs:
-                Documents retrieved from the FAISS vector store.
+                Documents retrieved from the curated knowledge base.
             source_style:
                 Detected language style of the user's input.
             translation_mode:

@@ -1,0 +1,365 @@
+import { useEffect, useState } from 'react';
+import { Header } from './components/Header';
+import { Sidebar } from './components/Sidebar';
+import { AuthModal } from './components/AuthModal';
+import { TranslateTab } from './components/TranslateTab';
+import { HistoryTab } from './components/HistoryTab';
+import { KnowledgeBaseTab } from './components/KnowledgeBaseTab';
+import { SuggestSlangTab } from './components/SuggestSlangTab';
+import { AdminReviewTab } from './components/AdminReviewTab';
+import { AuthState, ConfigResponse, TranslationResult } from './types';
+import { fetchConfig, fetchCurrentAuthUser, startNewConversation } from './services/api';
+import { Languages, Clock, Database, Send, ShieldCheck, LogIn, Briefcase, Zap, ArrowRight } from 'lucide-react';
+
+export function App() {
+  const [theme, setTheme] = useState<'dark' | 'light'>('light');
+  const [userMode, setUserMode] = useState<'corporate' | 'genz'>('corporate');
+  const [activeTab, setActiveTab] = useState<'translate' | 'history' | 'knowledge' | 'suggest' | 'admin'>('translate');
+  const [config, setConfig] = useState<ConfigResponse | null>(null);
+  const [translationMode, setTranslationMode] = useState<string>('auto');
+  const [customApiKey, setCustomApiKey] = useState<string>('');
+
+  const [auth, setAuth] = useState<AuthState>(() => {
+    const savedToken = localStorage.getItem('cs_token');
+    return {
+      user: null,
+      role: 'user',
+      userMode: 'corporate',
+      accessToken: savedToken,
+      conversationId: null,
+      plan: 'free',
+      usageCount: 0,
+      usageLimit: 3,
+    };
+  });
+
+  const [isAuthOpen, setIsAuthOpen] = useState(false);
+  const [authDefaultRegister, setAuthDefaultRegister] = useState(false);
+  const [localHistory, setLocalHistory] = useState<TranslationResult[]>([]);
+  const [lastResult, setLastResult] = useState<TranslationResult | null>(null);
+
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme);
+  }, [theme]);
+
+  useEffect(() => {
+    document.documentElement.setAttribute('data-persona', userMode);
+  }, [userMode]);
+
+  useEffect(() => {
+    fetchConfig()
+      .then((cfg) => setConfig(cfg))
+      .catch((err) => console.warn('Failed to fetch config', err));
+  }, []);
+
+  useEffect(() => {
+    if (auth.accessToken && !auth.user) {
+      fetchCurrentAuthUser(auth.accessToken)
+        .then((res) => {
+          const mode = res.user_mode || 'corporate';
+          setAuth((prev) => ({
+            ...prev,
+            user: res.user,
+            role: res.role,
+            userMode: mode,
+            conversationId: res.conversation_id,
+            plan: res.plan,
+            usageCount: res.usage_count,
+            usageLimit: res.usage_limit,
+          }));
+          setUserMode(mode);
+        })
+        .catch(() => {
+          localStorage.removeItem('cs_token');
+          setAuth({ user: null, role: 'user', userMode: 'corporate', accessToken: null, conversationId: null, plan: 'free', usageCount: 0, usageLimit: 3 });
+        });
+    }
+  }, [auth.accessToken]);
+
+  const toggleTheme = () => {
+    setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'));
+  };
+
+  const openAuth = (defaultToRegister = false) => {
+    setAuthDefaultRegister(defaultToRegister);
+    setIsAuthOpen(true);
+  };
+
+  const handleAuthSuccess = (data: {
+    user: { id: string; email: string; user_mode?: 'corporate' | 'genz' };
+    role: 'user' | 'admin';
+    userMode?: 'corporate' | 'genz';
+    accessToken: string;
+    conversationId: string;
+    plan: 'free' | 'paid';
+    usageCount: number;
+    usageLimit: number;
+  }) => {
+    localStorage.setItem('cs_token', data.accessToken);
+    const mode = data.userMode || data.user.user_mode || 'corporate';
+    setUserMode(mode);
+    setAuth({
+      user: data.user,
+      role: data.role,
+      userMode: mode,
+      accessToken: data.accessToken,
+      conversationId: data.conversationId,
+      plan: data.plan,
+      usageCount: data.usageCount,
+      usageLimit: data.usageLimit,
+    });
+  };
+
+  const handleSignOut = () => {
+    localStorage.removeItem('cs_token');
+    setAuth({ user: null, role: 'user', userMode: 'corporate', accessToken: null, conversationId: null, plan: 'free', usageCount: 0, usageLimit: 3 });
+  };
+
+  const handleNewConversation = async () => {
+    if (auth.accessToken) {
+      try {
+        const convId = await startNewConversation(auth.accessToken);
+        setAuth((prev) => ({ ...prev, conversationId: convId }));
+        setLocalHistory([]);
+        setLastResult(null);
+      } catch (err: any) {
+        alert(`Error starting conversation: ${err.message}`);
+      }
+    }
+  };
+
+  const handleTranslationComplete = (result: TranslationResult) => {
+    setLastResult(result);
+    setLocalHistory((prev) => [...prev, result]);
+    setAuth((prev) => ({ ...prev, plan: result.plan, usageCount: result.usage_count, usageLimit: result.usage_limit }));
+  };
+
+  // ── Auth-gated landing screen ─────────────────────────────────────────────
+  if (!auth.user && !auth.accessToken) {
+    return (
+      <div className="landing-page">
+        <div className="landing-bg-orb orb-1" />
+        <div className="landing-bg-orb orb-2" />
+
+        <nav className="landing-nav">
+          <div className="landing-logo">
+            <div className="landing-logo-icon">✦</div>
+            <span>CrossSpeak <strong>AI</strong></span>
+          </div>
+          <div style={{ display: 'flex', gap: '0.75rem' }}>
+            <button
+              id="landing-sign-in-btn"
+              className="btn btn-secondary"
+              style={{ fontSize: '0.88rem', padding: '0.55rem 1.25rem' }}
+              onClick={() => openAuth(false)}
+            >
+              <LogIn size={16} /> Sign In
+            </button>
+            <button
+              id="landing-register-btn"
+              className="btn btn-primary"
+              style={{ fontSize: '0.88rem', padding: '0.55rem 1.25rem' }}
+              onClick={() => openAuth(true)}
+            >
+              Get Started <ArrowRight size={16} />
+            </button>
+          </div>
+        </nav>
+
+        <div className="landing-hero">
+          <div className="landing-badge">
+            <span className="pulse-dot" />
+            AI-Powered Dialect Bridge
+          </div>
+          <h1 className="landing-title">
+            Speak Every<br />
+            <span className="gradient-text">Business Language</span>
+          </h1>
+          <p className="landing-subtitle">
+            CrossSpeak AI bridges the gap between Corporate English and Gen Z slang
+            using a RAG-powered translation engine. Your persona. Your history. Your dialect.
+          </p>
+          <div className="landing-cta-row">
+            <button
+              id="landing-cta-register-btn"
+              className="btn btn-primary landing-cta-btn"
+              onClick={() => openAuth(true)}
+            >
+              Register Your Persona <ArrowRight size={18} />
+            </button>
+            <button
+              id="landing-cta-signin-btn"
+              className="btn btn-secondary landing-cta-btn"
+              onClick={() => openAuth(false)}
+            >
+              <LogIn size={18} /> Sign In
+            </button>
+          </div>
+        </div>
+
+        <div className="landing-modes">
+          <div className="landing-mode-card mode-corporate">
+            <div className="landing-mode-icon">
+              <Briefcase size={28} />
+            </div>
+            <h3>Corporate Mode</h3>
+            <p>Executive-level communication, business jargon, boardroom fluency. Turn Gen Z speak into polished professional language.</p>
+            <div className="badge badge-corp" style={{ marginTop: '0.75rem' }}>Business English</div>
+          </div>
+          <div className="landing-mode-card mode-genz">
+            <div className="landing-mode-icon">
+              <Zap size={28} />
+            </div>
+            <h3>Gen Z Mode</h3>
+            <p>Slang, culture, vibes. Decode the latest Gen Z lexicon or translate corporate speak into something that actually hits different.</p>
+            <div className="badge badge-genz" style={{ marginTop: '0.75rem' }}>Gen Z Slang</div>
+          </div>
+        </div>
+
+        <section className="landing-plans" aria-labelledby="plans-heading">
+          <h2 id="plans-heading">Simple plans for every workflow</h2>
+          <div className="landing-modes">
+            <div className="landing-mode-card">
+              <span className="badge badge-corp">Free</span>
+              <h3>Explore CrossSpeak AI</h3>
+              <p>Up to 3 successful translations, with saved history and persona-based terminology.</p>
+            </div>
+            <div className="landing-mode-card paid-plan-card">
+              <span className="badge badge-accent">Paid</span>
+              <h3>Unlimited Translation</h3>
+              <p>Unlimited daily translations, with the same protected workspace, history, and language-safety controls.</p>
+            </div>
+          </div>
+        </section>
+
+        <p className="landing-footer-note">
+          Sign in or register to unlock your persona workspace and translation history.
+        </p>
+
+        <AuthModal
+          isOpen={isAuthOpen}
+          onClose={() => setIsAuthOpen(false)}
+          onAuthSuccess={handleAuthSuccess}
+          defaultRegister={authDefaultRegister}
+        />
+      </div>
+    );
+  }
+
+  // ── Authenticated app ─────────────────────────────────────────────────────
+  return (
+    <div className="app-container">
+      <div className="main-content">
+        <Header
+          theme={theme}
+          toggleTheme={toggleTheme}
+          auth={auth}
+          onOpenAuth={() => openAuth(false)}
+          onSignOut={handleSignOut}
+          apiKeyConnected={Boolean(customApiKey || config?.gemini_api_keys_count)}
+          userMode={userMode}
+        />
+
+        <div style={{ display: 'flex', gap: '1.5rem', alignItems: 'flex-start' }}>
+          <Sidebar
+            config={config}
+            translationMode={translationMode}
+            setTranslationMode={setTranslationMode}
+            customApiKey={customApiKey}
+            setCustomApiKey={setCustomApiKey}
+            historyCount={localHistory.length}
+            onClearLocalHistory={() => setLocalHistory([])}
+            onNewConversation={handleNewConversation}
+            isLoggedIn={Boolean(auth.user)}
+          />
+
+          <main style={{ flex: 1, minWidth: 0 }}>
+            {/* Tab Navigation */}
+            <div className="tab-bar">
+              <button
+                id="tab-translate-btn"
+                className={`tab-btn ${activeTab === 'translate' ? 'active' : ''}`}
+                onClick={() => setActiveTab('translate')}
+              >
+                <Languages size={18} /> Translate
+              </button>
+              <button
+                id="tab-history-btn"
+                className={`tab-btn ${activeTab === 'history' ? 'active' : ''}`}
+                onClick={() => setActiveTab('history')}
+              >
+                <Clock size={18} /> History
+              </button>
+              <button
+                id="tab-knowledge-btn"
+                className={`tab-btn ${activeTab === 'knowledge' ? 'active' : ''}`}
+                onClick={() => setActiveTab('knowledge')}
+              >
+                <Database size={18} /> Knowledge Base
+              </button>
+              {config?.supabase_enabled && (
+                <button
+                  id="tab-suggest-btn"
+                  className={`tab-btn ${activeTab === 'suggest' ? 'active' : ''}`}
+                  onClick={() => setActiveTab('suggest')}
+                >
+                  <Send size={18} /> Suggest Slang
+                </button>
+              )}
+              {config?.supabase_enabled && auth.role === 'admin' && (
+                <button
+                  id="tab-admin-btn"
+                  className={`tab-btn ${activeTab === 'admin' ? 'active' : ''}`}
+                  onClick={() => setActiveTab('admin')}
+                >
+                  <ShieldCheck size={18} /> Admin Review
+                </button>
+              )}
+            </div>
+
+            {/* Active Tab Content */}
+            {activeTab === 'translate' && (
+              <TranslateTab
+                translationMode={translationMode}
+                customApiKey={customApiKey}
+                token={auth.accessToken || undefined}
+                conversationId={auth.conversationId || undefined}
+                userMode={userMode}
+                onTranslationComplete={handleTranslationComplete}
+                lastResult={lastResult}
+              />
+            )}
+
+            {activeTab === 'history' && (
+              <HistoryTab token={auth.accessToken || undefined} localHistory={localHistory} />
+            )}
+
+            {activeTab === 'knowledge' && (
+              <KnowledgeBaseTab token={auth.accessToken || undefined} userMode={userMode} />
+            )}
+
+            {activeTab === 'suggest' && (
+              <SuggestSlangTab
+                token={auth.accessToken || undefined}
+                onOpenAuth={() => openAuth(false)}
+              />
+            )}
+
+            {activeTab === 'admin' && (
+              <AdminReviewTab token={auth.accessToken || undefined} role={auth.role} />
+            )}
+          </main>
+        </div>
+      </div>
+
+      <AuthModal
+        isOpen={isAuthOpen}
+        onClose={() => setIsAuthOpen(false)}
+        onAuthSuccess={handleAuthSuccess}
+        defaultRegister={authDefaultRegister}
+      />
+    </div>
+  );
+}
+
+export default App;

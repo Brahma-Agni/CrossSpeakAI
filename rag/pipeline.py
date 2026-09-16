@@ -5,9 +5,7 @@ Orchestrates the end-to-end RAG pipeline:
 
   User Input → Detector → Retriever → PromptBuilder → APIManager → Response
 
-This is the single public entry point used by the Streamlit UI.  All
-heavy objects (embeddings, FAISS index) are constructed once and passed
-in from cached Streamlit resources.
+This is the single public entry point used by the FastAPI backend.
 """
 
 from __future__ import annotations
@@ -56,13 +54,13 @@ class TranslationResult:
 class RAGPipeline:
     """Full Retrieval-Augmented Generation pipeline for Cross Speak AI.
 
-    Wires together the language detector, FAISS retriever, prompt
+    Wires together the language detector, knowledge retriever, prompt
     builder, and Gemini API manager into a single coherent translate()
     call.
 
     Attributes:
         _detector: Heuristic language style classifier.
-        _retriever: FAISS semantic retriever.
+        _retriever: Curated knowledge retriever.
         _prompt_builder: Structured prompt constructor.
         _api_manager: Multi-key Gemini API manager with failover.
     """
@@ -79,7 +77,7 @@ class RAGPipeline:
 
         Args:
             detector: Language style detector instance.
-            retriever: Semantic FAISS retriever instance.
+            retriever: Curated knowledge retriever instance.
             prompt_builder: Prompt construction instance.
             api_manager: Gemini API manager with failover.
         """
@@ -106,7 +104,7 @@ class RAGPipeline:
                 One of ``"auto"``, ``"corporate_to_genz"``, or
                 ``"genz_to_corporate"``.
             score_threshold:
-                FAISS similarity threshold for document retrieval.
+                Compatibility threshold for document retrieval.
 
         Returns:
             A :class:`TranslationResult` dataclass with all outputs.

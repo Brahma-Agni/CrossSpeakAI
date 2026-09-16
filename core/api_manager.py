@@ -66,7 +66,7 @@ class APIManager:
             raise ValueError(
                 "No Gemini API keys configured.  "
                 "Set GEMINI_API_KEY_1 … GEMINI_API_KEY_5 in .env or "
-                "Streamlit Secrets."
+                "the deployment environment."
             )
 
         self._keys: list[str] = list(settings.gemini_api_keys)

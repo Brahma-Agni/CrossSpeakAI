@@ -1,9 +1,7 @@
 """
 core/config.py
 
-Centralised application settings loaded from environment variables
-or Streamlit Secrets, with sensible defaults.  A single Settings
-singleton is created at import time and reused throughout the app.
+Centralised application settings loaded from environment variables.
 """
 
 from __future__ import annotations
@@ -21,21 +19,19 @@ class Settings:
     """Immutable application configuration.
 
     Reads values from environment variables with fallbacks.
-    On Streamlit Cloud, values are read from ``st.secrets``; locally,
-    environment variables and ``.env`` values are supported.
 
     Attributes:
         gemini_api_keys: Ordered list of Gemini API keys for failover.
-        embedding_model: HuggingFace sentence-transformer model name.
+        embedding_model: Compatibility label for the retrieval strategy.
         gemini_model: Gemini model identifier string.
         knowledge_base_path: Path to the CSV knowledge base file.
-        vectorstore_path: Directory where the FAISS index is persisted.
+        vectorstore_path: Directory where the retrieval cache is persisted.
         max_retrieved_docs: Number of documents to retrieve per query.
         retriever_score_threshold: Minimum similarity score to include.
     """
 
     gemini_api_keys: list[str] = field(default_factory=list)
-    embedding_model: str = "all-MiniLM-L6-v2"
+    embedding_model: str = "lexical-hash-384"
     gemini_model: str = "gemini-3.6-flash"
     knowledge_base_path: str = "data/knowledge_base.csv"
     vectorstore_path: str = "vectorstore/faiss_index"
@@ -49,7 +45,7 @@ class Settings:
 
 
 def _collect_api_keys() -> list[str]:
-    """Collect Gemini API keys from Streamlit Secrets or environment variables.
+    """Collect Gemini API keys from environment variables.
 
     Supports single key names (GEMINI_API_KEY, GOOGLE_API_KEY) and
     numbered failover keys (GEMINI_API_KEY_1 ... GEMINI_API_KEY_5).
@@ -65,29 +61,6 @@ def _collect_api_keys() -> list[str]:
             if cleaned and cleaned not in keys:
                 keys.append(cleaned)
 
-    # 1. Try Streamlit Secrets (Streamlit Cloud injects st.secrets dynamically)
-    try:
-        import streamlit as st  # type: ignore
-
-        if hasattr(st, "secrets"):
-            for key_name in ("GEMINI_API_KEY", "GOOGLE_API_KEY"):
-                try:
-                    if key_name in st.secrets:
-                        _add_key(st.secrets[key_name])
-                except Exception:
-                    pass
-
-            for index in range(1, 6):
-                key_name = f"GEMINI_API_KEY_{index}"
-                try:
-                    if key_name in st.secrets:
-                        _add_key(st.secrets[key_name])
-                except Exception:
-                    pass
-    except Exception:
-        pass
-
-    # 2. Check environment variables (.env file or system env)
     for key_name in ("GEMINI_API_KEY", "GOOGLE_API_KEY"):
         _add_key(os.getenv(key_name))
 
@@ -98,14 +71,7 @@ def _collect_api_keys() -> list[str]:
 
 
 def _setting(name: str, default: str = "") -> str:
-    """Read one setting from Streamlit Secrets, then the environment."""
-    try:
-        import streamlit as st  # type: ignore
-
-        if name in st.secrets:
-            return str(st.secrets[name]).strip()
-    except Exception:
-        pass
+    """Read one setting from the environment."""
     return os.getenv(name, default).strip()
 
 
@@ -120,12 +86,12 @@ def get_settings() -> Settings:
     if not api_keys:
         logger.warning(
             "No Gemini API keys found.  Set GEMINI_API_KEY_1 … "
-            "GEMINI_API_KEY_5 in .env or Streamlit Secrets."
+            "GEMINI_API_KEY_5 in .env or the deployment environment."
         )
 
     return Settings(
         gemini_api_keys=api_keys,
-        embedding_model=_setting("EMBEDDING_MODEL", "all-MiniLM-L6-v2"),
+        embedding_model=_setting("EMBEDDING_MODEL", "lexical-hash-384"),
         gemini_model=_setting("GEMINI_MODEL", "gemini-1.5-flash"),
         knowledge_base_path=_setting(
             "KNOWLEDGE_BASE_PATH", "data/knowledge_base.csv"

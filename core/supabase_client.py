@@ -9,9 +9,11 @@ from supabase import Client, create_client
 
 from core.config import Settings
 
+FREE_TRANSLATION_LIMIT = 3
+
 
 def create_user_client(settings: Settings) -> Client:
-    """Create a user-scoped client; never cache this across Streamlit sessions."""
+    """Create a user-scoped Supabase client."""
     if not settings.supabase_enabled:
         raise RuntimeError("Supabase integration is disabled.")
     if not settings.supabase_url or not settings.supabase_publishable_key:
@@ -31,8 +33,10 @@ class SupabaseStore:
     def __init__(self, client: Client) -> None:
         self.client = client
 
-    def sign_up(self, email: str, password: str) -> Any:
-        return self.client.auth.sign_up({"email": email, "password": password})
+    def sign_up(self, email: str, password: str, user_mode: str = "corporate") -> Any:
+        return self.client.auth.sign_up(
+            {"email": email, "password": password, "options": {"data": {"user_mode": user_mode}}}
+        )
 
     def sign_in(self, email: str, password: str) -> Any:
         return self.client.auth.sign_in_with_password(
@@ -42,15 +46,100 @@ class SupabaseStore:
     def sign_out(self) -> None:
         self.client.auth.sign_out({"scope": "local"})
 
+    # ── Profile helpers ────────────────────────────────────────────────────────
+
     def get_role(self, user_id: str) -> str:
-        response = (
-            self.client.table("profiles")
-            .select("role")
-            .eq("id", user_id)
-            .single()
-            .execute()
-        )
-        return str(response.data.get("role", "user"))
+        try:
+            response = (
+                self.client.table("profiles")
+                .select("role")
+                .eq("id", user_id)
+                .single()
+                .execute()
+            )
+            return str(response.data.get("role", "user"))
+        except Exception:
+            return "user"
+
+    def get_plan(self, user_id: str) -> str:
+        """Return 'free' or 'paid'."""
+        try:
+            response = (
+                self.client.table("profiles")
+                .select("plan,plan_expires_at")
+                .eq("id", user_id)
+                .single()
+                .execute()
+            )
+            plan = str(response.data.get("plan", "free"))
+            expires_at = response.data.get("plan_expires_at")
+            if plan == "paid" and expires_at:
+                expiry = datetime.fromisoformat(str(expires_at).replace("Z", "+00:00"))
+                if expiry <= datetime.now(timezone.utc):
+                    return "free"
+            return plan
+        except Exception:
+            return "free"
+
+    def get_user_mode(self, user_id: str, user_obj: Any = None) -> str:
+        if user_obj and hasattr(user_obj, "user_metadata") and isinstance(user_obj.user_metadata, dict):
+            if "user_mode" in user_obj.user_metadata:
+                return str(user_obj.user_metadata["user_mode"])
+        try:
+            response = (
+                self.client.table("profiles")
+                .select("user_mode")
+                .eq("id", user_id)
+                .single()
+                .execute()
+            )
+            return str(response.data.get("user_mode", "corporate"))
+        except Exception:
+            return "corporate"
+
+    def ensure_user_mode_persisted(self, user_id: str, user_mode: str) -> None:
+        """Write user_mode to profiles if not already set correctly."""
+        try:
+            self.client.table("profiles").upsert(
+                {"id": user_id, "user_mode": user_mode},
+                on_conflict="id",
+            ).execute()
+        except Exception:
+            pass
+
+    # ── Quota / Usage ─────────────────────────────────────────────────────────
+
+    def get_usage(self, user_id: str) -> int:
+        """Count all translations used by this account."""
+        try:
+            response = self.client.rpc(
+                "get_translation_usage", {"p_user_id": user_id}
+            ).execute()
+            return int(response.data or 0)
+        except Exception:
+            # Fallback: count directly if the latest RPC is not yet applied.
+            try:
+                response = (
+                    self.client.table("translation_history")
+                    .select("id", count="exact")
+                    .eq("user_id", user_id)
+                    .execute()
+                )
+                return response.count or 0
+            except Exception:
+                return 0
+
+    def check_quota(self, user_id: str, plan: str) -> tuple[int, int, bool]:
+        """Return (usage_count, limit, is_allowed).
+        Paid users always allowed. Free users allowed below the free-plan limit.
+        """
+        if plan == "paid":
+            usage = self.get_usage(user_id)
+            return usage, -1, True  # -1 = unlimited
+        usage = self.get_usage(user_id)
+        return usage, FREE_TRANSLATION_LIMIT, usage < FREE_TRANSLATION_LIMIT
+
+    # ── Conversations ─────────────────────────────────────────────────────────
 
     def get_or_create_conversation(self, user_id: str) -> str:
         response = (
@@ -73,6 +162,24 @@ class SupabaseStore:
         )
         return str(response.data[0]["id"])
 
+    def get_conversations(self, user_id: str) -> list[dict[str, Any]]:
+        """Return all conversations for a user with metadata, newest first."""
+        try:
+            response = self.client.rpc(
+                "get_conversations_with_preview", {"p_user_id": user_id}
+            ).execute()
+            return response.data or []
+        except Exception:
+            # Fallback without preview
+            response = (
+                self.client.table("conversations")
+                .select("id,title,created_at,updated_at")
+                .eq("user_id", user_id)
+                .order("updated_at", desc=True)
+                .execute()
+            )
+            return response.data or []
+
     def get_conversation_context(
         self, conversation_id: str, limit: int
     ) -> list[dict[str, str]]:
@@ -85,6 +192,8 @@ class SupabaseStore:
             .execute()
         )
         return list(reversed(response.data or []))
+
+    # ── Translation History ───────────────────────────────────────────────────
 
     def save_translation(
         self,
@@ -108,11 +217,12 @@ class SupabaseStore:
             {"updated_at": datetime.now(timezone.utc).isoformat()}
         ).eq("id", conversation_id).execute()
 
-    def get_history(self, limit: int = 50) -> list[dict[str, Any]]:
+    def get_history(self, limit: int = 100) -> list[dict[str, Any]]:
+        """Return flat history ordered newest-first."""
         response = (
             self.client.table("translation_history")
             .select(
-                "id,input_text,output_text,detected_style,"
+                "id,conversation_id,input_text,output_text,detected_style,"
                 "translation_direction,terms_used,created_at"
             )
             .order("created_at", desc=True)
@@ -120,6 +230,25 @@ class SupabaseStore:
             .execute()
         )
         return response.data or []
+
+    def get_history_by_conversation(
+        self, conversation_id: str, limit: int = 100
+    ) -> list[dict[str, Any]]:
+        """Return history for a specific conversation, chronological order."""
+        response = (
+            self.client.table("translation_history")
+            .select(
+                "id,conversation_id,input_text,output_text,detected_style,"
+                "translation_direction,terms_used,created_at"
+            )
+            .eq("conversation_id", conversation_id)
+            .order("created_at", desc=False)
+            .limit(limit)
+            .execute()
+        )
+        return response.data or []
+
+    # ── Slang Suggestions ─────────────────────────────────────────────────────
 
     def submit_suggestion(
         self,
