@@ -22,7 +22,7 @@ export const Header: React.FC<HeaderProps> = ({
   return (
     <header className="glass-card app-header">
       <div className="app-brand">
-        <div className="app-brand-mark">CS</div>
+        <img className="brand-logo" src="/crossspeak-logo.png" alt="CrossSpeak AI logo" />
         <div>
           <h1>CrossSpeak AI</h1>
           <p>Clear communication across generations</p>

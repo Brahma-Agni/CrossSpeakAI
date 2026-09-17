@@ -165,7 +165,7 @@ export function App() {
   if (authChecking) {
     return (
       <div className="auth-loading-page">
-        <div className="app-brand-mark">CS</div>
+        <img className="brand-logo brand-logo-large" src="/crossspeak-logo.png" alt="CrossSpeak AI logo" />
         <strong>Opening your workspace</strong>
         <span>Checking your secure session…</span>
       </div>
@@ -181,7 +181,7 @@ export function App() {
 
         <nav className="landing-nav">
           <div className="landing-logo">
-            <div className="landing-logo-icon">CS</div>
+            <img className="brand-logo" src="/crossspeak-logo.png" alt="CrossSpeak AI logo" />
             <span>CrossSpeak <strong>AI</strong></span>
           </div>
           <div className="landing-nav-actions">

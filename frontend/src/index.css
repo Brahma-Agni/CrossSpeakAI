@@ -135,18 +135,18 @@ body {
   min-width: 0;
 }
 
-.app-brand-mark {
+.brand-logo {
   width: 2.65rem;
   height: 2.65rem;
   flex: 0 0 auto;
-  border-radius: 0.8rem;
-  display: grid;
-  place-items: center;
-  color: #fff;
-  background: var(--accent-gradient);
+  border-radius: 50%;
+  object-fit: cover;
   box-shadow: 0 6px 16px var(--accent-glow);
-  font-size: 0.9rem;
-  font-weight: 850;
+}
+
+.brand-logo-large {
+  width: 3.5rem;
+  height: 3.5rem;
 }
 
 .app-brand > div:last-child {
@@ -976,16 +976,9 @@ body {
   color: var(--accent-primary);
 }
 
-.landing-logo-icon {
+.landing-logo .brand-logo {
   width: 2.2rem;
   height: 2.2rem;
-  border-radius: 0.6rem;
-  background: var(--accent-gradient);
-  display: grid;
-  place-items: center;
-  color: white;
-  font-size: 1rem;
-  box-shadow: 0 4px 12px var(--accent-glow);
 }
 
 .landing-hero {
