@@ -10,14 +10,17 @@ import { AdminReviewTab } from './components/AdminReviewTab';
 import { UpgradeModal } from './components/UpgradeModal';
 import { AuthState, ConfigResponse, TranslationResult } from './types';
 import { fetchConfig, fetchCurrentAuthUser, startNewConversation } from './services/api';
-import { Languages, Clock, Database, Send, ShieldCheck, LogIn, Briefcase, Zap, ArrowRight } from 'lucide-react';
+import { Languages, Clock, Database, Send, ShieldCheck, LogIn, Briefcase, Zap, ArrowRight, Moon, Sun } from 'lucide-react';
 
 export function App() {
-  const [theme, setTheme] = useState<'dark' | 'light'>('light');
+  const [theme, setTheme] = useState<'dark' | 'light'>(() => {
+    const savedTheme = localStorage.getItem('cs_theme');
+    if (savedTheme === 'dark' || savedTheme === 'light') return savedTheme;
+    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+  });
   const [userMode, setUserMode] = useState<'corporate' | 'genz'>('corporate');
   const [activeTab, setActiveTab] = useState<'translate' | 'history' | 'knowledge' | 'suggest' | 'admin'>('translate');
   const [config, setConfig] = useState<ConfigResponse | null>(null);
-  const [translationMode, setTranslationMode] = useState<string>('auto');
   const [customApiKey, setCustomApiKey] = useState<string>('');
 
   const [auth, setAuth] = useState<AuthState>(() => {
@@ -35,6 +38,7 @@ export function App() {
   });
 
   const [isAuthOpen, setIsAuthOpen] = useState(false);
+  const [authChecking, setAuthChecking] = useState(Boolean(localStorage.getItem('cs_token')));
   const [isUpgradeOpen, setIsUpgradeOpen] = useState(false);
   const [authDefaultRegister, setAuthDefaultRegister] = useState(false);
   const [localHistory, setLocalHistory] = useState<TranslationResult[]>([]);
@@ -42,6 +46,7 @@ export function App() {
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
+    localStorage.setItem('cs_theme', theme);
   }, [theme]);
 
   useEffect(() => {
@@ -55,28 +60,32 @@ export function App() {
   }, []);
 
   useEffect(() => {
-    if (auth.accessToken && !auth.user) {
-      fetchCurrentAuthUser(auth.accessToken)
-        .then((res) => {
-          const mode = res.user_mode || 'corporate';
-          setAuth((prev) => ({
-            ...prev,
-            user: res.user,
-            role: res.role,
-            userMode: mode,
-            conversationId: res.conversation_id,
-            plan: res.plan,
-            usageCount: res.usage_count,
-            usageLimit: res.usage_limit,
-          }));
-          setUserMode(mode);
-        })
-        .catch(() => {
-          localStorage.removeItem('cs_token');
-          setAuth({ user: null, role: 'user', userMode: 'corporate', accessToken: null, conversationId: null, plan: 'free', usageCount: 0, usageLimit: 3 });
-        });
+    if (!auth.accessToken || auth.user) {
+      setAuthChecking(false);
+      return;
     }
-  }, [auth.accessToken]);
+    setAuthChecking(true);
+    fetchCurrentAuthUser(auth.accessToken)
+      .then((res) => {
+        const mode = res.user_mode || 'corporate';
+        setAuth((prev) => ({
+          ...prev,
+          user: res.user,
+          role: res.role,
+          userMode: mode,
+          conversationId: res.conversation_id,
+          plan: res.plan,
+          usageCount: res.usage_count,
+          usageLimit: res.usage_limit,
+        }));
+        setUserMode(mode);
+      })
+      .catch(() => {
+        localStorage.removeItem('cs_token');
+        setAuth({ user: null, role: 'user', userMode: 'corporate', accessToken: null, conversationId: null, plan: 'free', usageCount: 0, usageLimit: 3 });
+      })
+      .finally(() => setAuthChecking(false));
+  }, [auth.accessToken, auth.user]);
 
   const toggleTheme = () => {
     setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'));
@@ -124,6 +133,7 @@ export function App() {
         setAuth((prev) => ({ ...prev, conversationId: convId }));
         setLocalHistory([]);
         setLastResult(null);
+        setActiveTab('translate');
       } catch (err: any) {
         alert(`Error starting conversation: ${err.message}`);
       }
@@ -152,6 +162,16 @@ export function App() {
     }));
   };
 
+  if (authChecking) {
+    return (
+      <div className="auth-loading-page">
+        <div className="app-brand-mark">CS</div>
+        <strong>Opening your workspace</strong>
+        <span>Checking your secure session…</span>
+      </div>
+    );
+  }
+
   // ── Auth-gated landing screen ─────────────────────────────────────────────
   if (!auth.user && !auth.accessToken) {
     return (
@@ -161,10 +181,13 @@ export function App() {
 
         <nav className="landing-nav">
           <div className="landing-logo">
-            <div className="landing-logo-icon">✦</div>
+            <div className="landing-logo-icon">CS</div>
             <span>CrossSpeak <strong>AI</strong></span>
           </div>
-          <div style={{ display: 'flex', gap: '0.75rem' }}>
+          <div className="landing-nav-actions">
+            <button className="icon-btn" onClick={toggleTheme} aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}>
+              {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
+            </button>
             <button
               id="landing-sign-in-btn"
               className="btn btn-secondary"
@@ -275,29 +298,14 @@ export function App() {
           theme={theme}
           toggleTheme={toggleTheme}
           auth={auth}
-          onOpenAuth={() => openAuth(false)}
           onSignOut={handleSignOut}
           onOpenUpgrade={() => setIsUpgradeOpen(true)}
-          apiKeyConnected={Boolean(customApiKey || config?.gemini_api_keys_count)}
           userMode={userMode}
         />
 
-        <div style={{ display: 'flex', gap: '1.5rem', alignItems: 'flex-start' }}>
-          <Sidebar
-            config={config}
-            translationMode={translationMode}
-            setTranslationMode={setTranslationMode}
-            customApiKey={customApiKey}
-            setCustomApiKey={setCustomApiKey}
-            historyCount={localHistory.length}
-            onClearLocalHistory={() => setLocalHistory([])}
-            onNewConversation={handleNewConversation}
-            isLoggedIn={Boolean(auth.user)}
-          />
-
-          <main style={{ flex: 1, minWidth: 0 }}>
-            {/* Tab Navigation */}
-            <div className="tab-bar">
+        <div className="workspace-layout">
+          <main className="workspace-main">
+            <nav className="tab-bar" aria-label="Workspace sections">
               <button
                 id="tab-translate-btn"
                 className={`tab-btn ${activeTab === 'translate' ? 'active' : ''}`}
@@ -337,12 +345,10 @@ export function App() {
                   <ShieldCheck size={18} /> Admin Review
                 </button>
               )}
-            </div>
+            </nav>
 
-            {/* Active Tab Content */}
             {activeTab === 'translate' && (
               <TranslateTab
-                translationMode={translationMode}
                 customApiKey={customApiKey}
                 token={auth.accessToken || undefined}
                 conversationId={auth.conversationId || undefined}
@@ -371,6 +377,21 @@ export function App() {
               <AdminReviewTab token={auth.accessToken || undefined} role={auth.role} />
             )}
           </main>
+
+          <Sidebar
+            config={config}
+            customApiKey={customApiKey}
+            setCustomApiKey={setCustomApiKey}
+            historyCount={localHistory.length}
+            onClearLocalHistory={() => {
+              setLocalHistory([]);
+              setLastResult(null);
+            }}
+            onNewConversation={handleNewConversation}
+            plan={auth.plan}
+            usageCount={auth.usageCount}
+            usageLimit={auth.usageLimit}
+          />
         </div>
       </div>
 
