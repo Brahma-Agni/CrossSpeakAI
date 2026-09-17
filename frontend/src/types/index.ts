@@ -1,6 +1,10 @@
 export interface ConfigResponse {
   gemini_api_keys_count: number;
   supabase_enabled: boolean;
+  payments_enabled: boolean;
+  paid_plan_amount_subunits: number;
+  paid_plan_currency: string;
+  paid_plan_duration_days: number;
   gemini_model: string;
   embedding_model: string;
   translation_modes: { label: string; value: string }[];
@@ -70,4 +74,21 @@ export interface SlangSuggestion {
   context?: string;
   status: 'pending' | 'approved' | 'rejected';
   created_at?: string;
+}
+
+export interface BillingOrder {
+  key_id: string;
+  order_id: string;
+  amount: number;
+  currency: string;
+  plan_days: number;
+  name: string;
+  description: string;
+  customer_email: string;
+}
+
+export interface BillingVerification {
+  message: string;
+  plan: 'paid';
+  plan_expires_at: string;
 }

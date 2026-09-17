@@ -7,6 +7,7 @@ import { HistoryTab } from './components/HistoryTab';
 import { KnowledgeBaseTab } from './components/KnowledgeBaseTab';
 import { SuggestSlangTab } from './components/SuggestSlangTab';
 import { AdminReviewTab } from './components/AdminReviewTab';
+import { UpgradeModal } from './components/UpgradeModal';
 import { AuthState, ConfigResponse, TranslationResult } from './types';
 import { fetchConfig, fetchCurrentAuthUser, startNewConversation } from './services/api';
 import { Languages, Clock, Database, Send, ShieldCheck, LogIn, Briefcase, Zap, ArrowRight } from 'lucide-react';
@@ -34,6 +35,7 @@ export function App() {
   });
 
   const [isAuthOpen, setIsAuthOpen] = useState(false);
+  const [isUpgradeOpen, setIsUpgradeOpen] = useState(false);
   const [authDefaultRegister, setAuthDefaultRegister] = useState(false);
   const [localHistory, setLocalHistory] = useState<TranslationResult[]>([]);
   const [lastResult, setLastResult] = useState<TranslationResult | null>(null);
@@ -134,6 +136,22 @@ export function App() {
     setAuth((prev) => ({ ...prev, plan: result.plan, usageCount: result.usage_count, usageLimit: result.usage_limit }));
   };
 
+  const refreshAccount = async () => {
+    if (!auth.accessToken) return;
+    const res = await fetchCurrentAuthUser(auth.accessToken);
+    const mode = res.user_mode || 'corporate';
+    setAuth((prev) => ({
+      ...prev,
+      user: res.user,
+      role: res.role,
+      userMode: mode,
+      conversationId: res.conversation_id,
+      plan: res.plan,
+      usageCount: res.usage_count,
+      usageLimit: res.usage_limit,
+    }));
+  };
+
   // ── Auth-gated landing screen ─────────────────────────────────────────────
   if (!auth.user && !auth.accessToken) {
     return (
@@ -227,7 +245,10 @@ export function App() {
             <div className="landing-mode-card paid-plan-card">
               <span className="badge badge-accent">Paid</span>
               <h3>Unlimited Translation</h3>
-              <p>Unlimited daily translations, with the same protected workspace, history, and language-safety controls.</p>
+              <p>
+                Unlimited translations for {config?.paid_plan_duration_days || 30} days
+                {config ? ` for ${new Intl.NumberFormat('en-IN', { style: 'currency', currency: config.paid_plan_currency, maximumFractionDigits: 0 }).format(config.paid_plan_amount_subunits / 100)}` : ''}, with the same protected workspace, history, and language-safety controls.
+              </p>
             </div>
           </div>
         </section>
@@ -256,6 +277,7 @@ export function App() {
           auth={auth}
           onOpenAuth={() => openAuth(false)}
           onSignOut={handleSignOut}
+          onOpenUpgrade={() => setIsUpgradeOpen(true)}
           apiKeyConnected={Boolean(customApiKey || config?.gemini_api_keys_count)}
           userMode={userMode}
         />
@@ -357,6 +379,14 @@ export function App() {
         onClose={() => setIsAuthOpen(false)}
         onAuthSuccess={handleAuthSuccess}
         defaultRegister={authDefaultRegister}
+      />
+      <UpgradeModal
+        isOpen={isUpgradeOpen}
+        onClose={() => setIsUpgradeOpen(false)}
+        onActivated={refreshAccount}
+        token={auth.accessToken || ''}
+        email={auth.user?.email || ''}
+        config={config}
       />
     </div>
   );

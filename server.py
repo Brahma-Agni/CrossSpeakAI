@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import sys
 import uuid
 from datetime import datetime, timezone
@@ -10,7 +11,7 @@ from typing import Any, Literal, Optional
 
 import pandas as pd
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException, Header, Query
+from fastapi import FastAPI, HTTPException, Header, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from langchain_core.documents import Document
 from pydantic import BaseModel, Field
@@ -21,9 +22,21 @@ if str(_ROOT) not in sys.path:
 load_dotenv(dotenv_path=_ROOT / ".env", override=False)
 
 from core.api_manager import APIManager
+from core.billing import (
+    BillingError,
+    RazorpayClient,
+    validate_captured_payment,
+    verify_payment_signature,
+    verify_webhook_signature,
+)
 from core.content_guard import contains_abusive_language
 from core.config import Settings, get_settings
-from core.supabase_client import FREE_TRANSLATION_LIMIT, SupabaseStore, create_user_client
+from core.supabase_client import (
+    FREE_TRANSLATION_LIMIT,
+    SupabaseStore,
+    create_admin_client,
+    create_user_client,
+)
 from rag.knowledge_loader import load_knowledge_base
 from rag.pipeline import RAGPipeline, TranslationResult
 from rag.prompt_builder import PromptBuilder
@@ -254,6 +267,53 @@ def get_auth_store(access_token: Optional[str] = None) -> Any:
     return _local_store
 
 
+def get_billing_store() -> SupabaseStore:
+    """Return the server-only store used after payment verification."""
+    if not _settings.billing_ready:
+        raise HTTPException(
+            status_code=503,
+            detail="Paid checkout is not configured yet.",
+        )
+    try:
+        return SupabaseStore(create_admin_client(_settings))
+    except Exception as exc:
+        logger.error("Billing store setup failed: %s", exc)
+        raise HTTPException(
+            status_code=503, detail="Billing service is unavailable."
+        ) from exc
+
+
+def authenticated_user(
+    authorization: Optional[str],
+) -> tuple[Any, Any]:
+    """Validate a bearer token and return its user-scoped store and user."""
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Sign in to continue.")
+    token = authorization.removeprefix("Bearer ").strip()
+    store = get_auth_store(token)
+    try:
+        if isinstance(store, SupabaseStore):
+            user = store.client.auth.get_user(token).user
+        else:
+            user = store.get_user_by_token(token)
+    except Exception as exc:
+        raise HTTPException(
+            status_code=401, detail="Your session is invalid or expired."
+        ) from exc
+    if user is None:
+        raise HTTPException(
+            status_code=401, detail="Your session is invalid or expired."
+        )
+    return store, user
+
+
+def razorpay_client() -> RazorpayClient:
+    return RazorpayClient(
+        key_id=_settings.razorpay_key_id,
+        key_secret=_settings.razorpay_key_secret,
+    )
+
+
 def account_status(store: Any, user_id: str) -> dict[str, Any]:
     plan = store.get_plan(user_id)
     usage, limit, _ = store.check_quota(user_id, plan)
@@ -373,6 +433,12 @@ class AdminRejectRequest(BaseModel):
     reason: str = ""
 
 
+class BillingVerifyRequest(BaseModel):
+    razorpay_order_id: str = Field(..., min_length=1, max_length=100)
+    razorpay_payment_id: str = Field(..., min_length=1, max_length=100)
+    razorpay_signature: str = Field(..., min_length=1, max_length=256)
+
+
 # ── API Routes ───────────────────────────────────────────────
 
 @app.get("/api/config")
@@ -382,6 +448,10 @@ def get_config():
         "supabase_enabled": _settings.supabase_enabled,
         "gemini_model": _settings.gemini_model,
         "embedding_model": _settings.embedding_model,
+        "payments_enabled": _settings.billing_ready,
+        "paid_plan_amount_subunits": _settings.paid_plan_amount_subunits,
+        "paid_plan_currency": _settings.paid_plan_currency,
+        "paid_plan_duration_days": _settings.paid_plan_duration_days,
         "translation_modes": [
             {"label": "Auto-detect style", "value": "auto"},
             {"label": "Corporate to Gen Z", "value": "corporate_to_genz"},
@@ -393,6 +463,152 @@ def get_config():
 @app.get("/api/health")
 def health():
     return {"status": "ok"}
+
+
+@app.post("/api/billing/order")
+def create_billing_order(authorization: Optional[str] = Header(None)):
+    """Create a provider order for the authenticated account."""
+    _, user = authenticated_user(authorization)
+    billing_store = get_billing_store()
+    receipt = f"cs_{uuid.uuid4().hex[:24]}"
+    try:
+        order = razorpay_client().create_order(
+            amount=_settings.paid_plan_amount_subunits,
+            currency=_settings.paid_plan_currency,
+            receipt=receipt,
+        )
+        order_id = str(order.get("id", ""))
+        if (
+            not order_id
+            or int(order.get("amount", -1))
+            != _settings.paid_plan_amount_subunits
+            or str(order.get("currency", "")).upper()
+            != _settings.paid_plan_currency
+        ):
+            raise BillingError("Payment provider returned an invalid order.")
+        billing_store.create_billing_order(
+            user_id=str(user.id),
+            provider_order_id=order_id,
+            amount=_settings.paid_plan_amount_subunits,
+            currency=_settings.paid_plan_currency,
+            plan_days=_settings.paid_plan_duration_days,
+        )
+        return {
+            "key_id": _settings.razorpay_key_id,
+            "order_id": order_id,
+            "amount": _settings.paid_plan_amount_subunits,
+            "currency": _settings.paid_plan_currency,
+            "plan_days": _settings.paid_plan_duration_days,
+            "name": "CrossSpeak AI",
+            "description": (
+                f"{_settings.paid_plan_duration_days}-day unlimited plan"
+            ),
+            "customer_email": str(user.email or ""),
+        }
+    except BillingError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    except Exception as exc:
+        logger.error("Billing order creation failed: %s", exc)
+        raise HTTPException(
+            status_code=503, detail="Could not start checkout. Please try again."
+        ) from exc
+
+
+@app.post("/api/billing/verify")
+def verify_billing_payment(
+    req: BillingVerifyRequest,
+    authorization: Optional[str] = Header(None),
+):
+    """Verify Checkout's signature and provider status before activation."""
+    _, user = authenticated_user(authorization)
+    billing_store = get_billing_store()
+    try:
+        order = billing_store.get_billing_order(
+            req.razorpay_order_id, user_id=str(user.id)
+        )
+        if not order:
+            raise HTTPException(status_code=404, detail="Billing order not found.")
+        stored_order_id = str(order["provider_order_id"])
+        if not verify_payment_signature(
+            stored_order_id,
+            req.razorpay_payment_id,
+            req.razorpay_signature,
+            _settings.razorpay_key_secret,
+        ):
+            raise HTTPException(status_code=400, detail="Invalid payment signature.")
+
+        payment = razorpay_client().fetch_payment(req.razorpay_payment_id)
+        validate_captured_payment(
+            payment,
+            payment_id=req.razorpay_payment_id,
+            order_id=stored_order_id,
+            amount=int(order["amount"]),
+            currency=str(order["currency"]),
+        )
+        activation = billing_store.activate_paid_plan(
+            provider_order_id=stored_order_id,
+            provider_payment_id=req.razorpay_payment_id,
+        )
+        return {
+            "message": "Payment verified. Unlimited access is active.",
+            "plan": activation["plan"],
+            "plan_expires_at": activation["plan_expires_at"],
+        }
+    except HTTPException:
+        raise
+    except BillingError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except Exception as exc:
+        logger.error("Payment verification failed: %s", exc)
+        raise HTTPException(
+            status_code=503,
+            detail="Payment could not be verified. It will be retried automatically.",
+        ) from exc
+
+
+@app.post("/api/billing/webhook")
+async def razorpay_webhook(
+    request: Request,
+    x_razorpay_signature: Optional[str] = Header(None),
+    x_razorpay_event_id: Optional[str] = Header(None),
+):
+    """Activate paid access from a signed payment.captured webhook."""
+    billing_store = get_billing_store()
+    raw_body = await request.body()
+    if not x_razorpay_signature or not verify_webhook_signature(
+        raw_body,
+        x_razorpay_signature,
+        _settings.razorpay_webhook_secret,
+    ):
+        raise HTTPException(status_code=400, detail="Invalid webhook signature.")
+    try:
+        event = json.loads(raw_body)
+        if event.get("event") != "payment.captured":
+            return {"status": "ignored"}
+        payment = event["payload"]["payment"]["entity"]
+        order_id = str(payment.get("order_id", ""))
+        order = billing_store.get_billing_order(order_id)
+        if not order:
+            return {"status": "ignored"}
+        payment_id = str(payment.get("id", ""))
+        validate_captured_payment(
+            payment,
+            payment_id=payment_id,
+            order_id=order_id,
+            amount=int(order["amount"]),
+            currency=str(order["currency"]),
+        )
+        billing_store.activate_paid_plan(
+            provider_order_id=order_id,
+            provider_payment_id=payment_id,
+            provider_event_id=x_razorpay_event_id,
+        )
+        return {"status": "processed"}
+    except (KeyError, TypeError, ValueError, json.JSONDecodeError, BillingError) as exc:
+        raise HTTPException(status_code=400, detail="Invalid webhook payload.") from exc
+    except Exception as exc:
+        logger.error("Billing webhook failed: %s", exc)
+        raise HTTPException(status_code=503, detail="Webhook processing failed.") from exc
 
 
 @app.post("/api/translate")

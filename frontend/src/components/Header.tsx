@@ -1,5 +1,5 @@
 import React from 'react';
-import { Sun, Moon, User, LogOut, ShieldCheck, Sparkles, Briefcase, Zap } from 'lucide-react';
+import { Sun, Moon, User, LogOut, ShieldCheck, Sparkles, Briefcase, Zap, CreditCard } from 'lucide-react';
 import { AuthState } from '../types';
 
 interface HeaderProps {
@@ -8,6 +8,7 @@ interface HeaderProps {
   auth: AuthState;
   onOpenAuth: () => void;
   onSignOut: () => void;
+  onOpenUpgrade: () => void;
   apiKeyConnected: boolean;
   userMode: 'corporate' | 'genz';
 }
@@ -18,6 +19,7 @@ export const Header: React.FC<HeaderProps> = ({
   auth,
   onOpenAuth,
   onSignOut,
+  onOpenUpgrade,
   apiKeyConnected,
   userMode,
 }) => {
@@ -73,14 +75,20 @@ export const Header: React.FC<HeaderProps> = ({
           {userMode === 'genz' ? 'Gen Z Persona' : 'Corporate Persona'}
         </span>
 
-        <span
-          className="badge badge-accent"
-          title={auth.plan === 'paid' ? 'Unlimited translations' : 'Free-plan usage'}
-        >
-          {auth.plan === 'paid'
-            ? 'Paid · Unlimited'
-            : `Free · ${auth.usageCount}/${auth.usageLimit}`}
-        </span>
+        {auth.plan === 'paid' ? (
+          <span className="badge badge-accent" title="Unlimited translations">
+            Paid · Unlimited
+          </span>
+        ) : (
+          <button
+            id="open-upgrade-btn"
+            className="btn btn-primary btn-sm"
+            onClick={onOpenUpgrade}
+            title={`Free plan: ${auth.usageCount} of ${auth.usageLimit} translations used`}
+          >
+            <CreditCard size={14} /> Upgrade · {auth.usageCount}/{auth.usageLimit}
+          </button>
+        )}
 
         {/* API Status Badge */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: 'var(--bg-input)', padding: '0.4rem 0.8rem', borderRadius: '2rem', border: '1px solid var(--border-color)', fontSize: '0.8rem' }}>

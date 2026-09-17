@@ -1,4 +1,4 @@
-import { ConfigResponse, TranslationResult, HistoryItem, KBTerm, SlangSuggestion } from '../types';
+import { BillingOrder, BillingVerification, ConfigResponse, TranslationResult, HistoryItem, KBTerm, SlangSuggestion } from '../types';
 
 const API_BASE = '/api';
 
@@ -86,6 +86,37 @@ export async function startNewConversation(token: string): Promise<string> {
   if (!res.ok) throw new Error('Failed to create new conversation');
   const data = await res.json();
   return data.conversation_id;
+}
+
+export async function createBillingOrder(token: string): Promise<BillingOrder> {
+  const res = await fetch(`${API_BASE}/billing/order`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || 'Could not start checkout');
+  }
+  return res.json();
+}
+
+export async function verifyBillingPayment(
+  payment: { razorpay_order_id: string; razorpay_payment_id: string; razorpay_signature: string },
+  token: string,
+): Promise<BillingVerification> {
+  const res = await fetch(`${API_BASE}/billing/verify`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(payment),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || 'Payment verification is pending');
+  }
+  return res.json();
 }
 
 export async function fetchKnowledgeBase(query?: string, category: string = 'All', token?: string): Promise<KBTerm[]> {

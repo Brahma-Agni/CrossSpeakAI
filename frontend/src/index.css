@@ -560,3 +560,133 @@ body {
   position: relative;
   z-index: 10;
 }
+
+/* ── Paid plan checkout ─────────────────────────────────────────────────── */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1100;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  background: rgba(15, 23, 42, 0.68);
+  backdrop-filter: blur(8px);
+}
+
+.upgrade-modal {
+  width: min(460px, 100%);
+  padding: 2rem;
+  position: relative;
+  background: var(--bg-secondary);
+  box-shadow: var(--shadow-lg);
+}
+
+.modal-close-btn {
+  position: absolute;
+  top: 1.1rem;
+  right: 1.1rem;
+  display: grid;
+  place-items: center;
+  border: 0;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.upgrade-icon {
+  width: 3.2rem;
+  height: 3.2rem;
+  display: grid;
+  place-items: center;
+  margin-bottom: 1rem;
+  border-radius: 1rem;
+  color: #fff;
+  background: var(--accent-gradient);
+  box-shadow: 0 6px 16px var(--accent-glow);
+}
+
+.upgrade-modal h2 {
+  margin-top: 0.75rem;
+  font-size: 1.45rem;
+}
+
+.upgrade-price {
+  margin: 0.75rem 0 1.25rem;
+  color: var(--text-primary);
+  font-size: 1.7rem;
+  font-weight: 800;
+}
+
+.upgrade-price span {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.upgrade-benefits {
+  display: grid;
+  gap: 0.7rem;
+  margin-bottom: 1.25rem;
+  list-style: none;
+  color: var(--text-secondary);
+  font-size: 0.88rem;
+}
+
+.upgrade-benefits li {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.55rem;
+}
+
+.upgrade-benefits svg {
+  flex: 0 0 auto;
+  margin-top: 0.1rem;
+  color: #10b981;
+}
+
+.upgrade-pay-btn {
+  width: 100%;
+  padding: 0.8rem;
+}
+
+.checkout-unavailable,
+.form-error {
+  padding: 0.8rem 1rem;
+  border-radius: 0.65rem;
+  font-size: 0.84rem;
+  margin-bottom: 1rem;
+}
+
+.checkout-unavailable {
+  color: #b45309;
+  background: rgba(245, 158, 11, 0.12);
+  border: 1px solid rgba(245, 158, 11, 0.3);
+}
+
+.form-error {
+  color: #dc2626;
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.25);
+}
+
+.upgrade-note {
+  margin-top: 0.85rem;
+  color: var(--text-muted);
+  font-size: 0.74rem;
+  text-align: center;
+}
+
+.upgrade-success {
+  display: grid;
+  justify-items: center;
+  gap: 1rem;
+  text-align: center;
+}
+
+.upgrade-success > svg {
+  color: #10b981;
+}
+
+.upgrade-success p {
+  color: var(--text-secondary);
+}

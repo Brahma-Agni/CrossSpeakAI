@@ -27,6 +27,17 @@ def create_user_client(settings: Settings) -> Client:
     )
 
 
+def create_admin_client(settings: Settings) -> Client:
+    """Create a server-only client for verified billing writes."""
+    if not settings.supabase_enabled:
+        raise RuntimeError("Supabase integration is disabled.")
+    if not settings.supabase_url or not settings.supabase_secret_key:
+        raise RuntimeError(
+            "SUPABASE_URL and SUPABASE_SECRET_KEY are required for billing."
+        )
+    return create_client(settings.supabase_url, settings.supabase_secret_key)
+
+
 class SupabaseStore:
     """User-scoped access to Cross Speak AI's Supabase tables."""
 
@@ -138,6 +149,60 @@ class SupabaseStore:
             return usage, -1, True  # -1 = unlimited
         usage = self.get_usage(user_id)
         return usage, FREE_TRANSLATION_LIMIT, usage < FREE_TRANSLATION_LIMIT
+
+    # ── Billing ───────────────────────────────────────────────────────────────
+
+    def create_billing_order(
+        self,
+        *,
+        user_id: str,
+        provider_order_id: str,
+        amount: int,
+        currency: str,
+        plan_days: int,
+    ) -> dict[str, Any]:
+        response = self.client.table("billing_orders").insert(
+            {
+                "user_id": user_id,
+                "provider_order_id": provider_order_id,
+                "amount": amount,
+                "currency": currency,
+                "plan_days": plan_days,
+            }
+        ).execute()
+        return response.data[0]
+
+    def get_billing_order(
+        self, provider_order_id: str, user_id: str | None = None
+    ) -> dict[str, Any] | None:
+        query = (
+            self.client.table("billing_orders")
+            .select("*")
+            .eq("provider_order_id", provider_order_id)
+        )
+        if user_id:
+            query = query.eq("user_id", user_id)
+        response = query.limit(1).execute()
+        return response.data[0] if response.data else None
+
+    def activate_paid_plan(
+        self,
+        *,
+        provider_order_id: str,
+        provider_payment_id: str,
+        provider_event_id: str | None = None,
+    ) -> dict[str, Any]:
+        response = self.client.rpc(
+            "activate_paid_plan",
+            {
+                "p_provider_order_id": provider_order_id,
+                "p_provider_payment_id": provider_payment_id,
+                "p_provider_event_id": provider_event_id,
+            },
+        ).execute()
+        if not response.data:
+            raise RuntimeError("Paid-plan activation returned no result.")
+        return response.data[0] if isinstance(response.data, list) else response.data
 
     # ── Conversations ─────────────────────────────────────────────────────────
 
