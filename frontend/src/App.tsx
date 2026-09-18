@@ -92,7 +92,7 @@ export function App() {
   };
 
   const handleUserModeChange = (mode: 'corporate' | 'genz') => {
-    if (auth.role !== 'admin') return;
+    if (auth.role !== 'admin' || auth.user?.email.toLowerCase() !== 'admin@csai.com') return;
     setUserMode(mode);
     setLastResult(null);
   };

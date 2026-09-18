@@ -32,7 +32,7 @@ export const Header: React.FC<HeaderProps> = ({
       </div>
 
       <div className="header-actions">
-        {auth.role === 'admin' ? (
+        {auth.role === 'admin' && auth.user?.email.toLowerCase() === 'admin@csai.com' ? (
           <div className="admin-mode-switch" aria-label="Translation direction">
             <button
               className={userMode === 'corporate' ? 'active corporate' : ''}

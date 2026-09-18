@@ -17,14 +17,22 @@ class RegistrationPersonaTests(unittest.TestCase):
         store = LocalAuthStore()
         user = store.sign_up("user@example.com", "secret", "genz").user
         admin = store.sign_up("admin@csai.com", "secret", "corporate").user
+        other_admin = store.sign_up("other-admin@example.com", "secret", "corporate").user
+        store.users[other_admin.id].role = "admin"
 
         self.assertEqual(
-            allowed_translation_mode(store, user.id, "corporate_to_genz"),
+            allowed_translation_mode(store, user.id, user.email, "corporate_to_genz"),
             "genz_to_corporate",
         )
         self.assertEqual(
-            allowed_translation_mode(store, admin.id, "genz_to_corporate"),
+            allowed_translation_mode(store, admin.id, admin.email, "genz_to_corporate"),
             "genz_to_corporate",
+        )
+        self.assertEqual(
+            allowed_translation_mode(
+                store, other_admin.id, other_admin.email, "genz_to_corporate"
+            ),
+            "corporate_to_genz",
         )
 
 

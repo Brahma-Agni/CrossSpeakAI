@@ -433,9 +433,14 @@ class AdminRejectRequest(BaseModel):
     reason: str = ""
 
 
-def allowed_translation_mode(store: Any, user_id: str, requested_mode: str) -> str:
-    """Admins choose a direction; other users keep their registered persona."""
-    if store.get_role(user_id) == "admin":
+def allowed_translation_mode(
+    store: Any, user_id: str, user_email: str, requested_mode: str
+) -> str:
+    """Only the designated admin account may choose a direction."""
+    if (
+        store.get_role(user_id) == "admin"
+        and user_email.strip().lower() == "admin@csai.com"
+    ):
         return requested_mode
     return (
         "genz_to_corporate"
@@ -678,7 +683,9 @@ def translate(
 
     result: TranslationResult = pipeline.translate(
         user_input=clean_input,
-        translation_mode=allowed_translation_mode(store, user_id, req.translation_mode),
+        translation_mode=allowed_translation_mode(
+            store, user_id, str(user.email or ""), req.translation_mode
+        ),
         score_threshold=_settings.retriever_score_threshold,
         conversation_context=context,
     )
