@@ -91,6 +91,12 @@ export function App() {
     setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'));
   };
 
+  const handleUserModeChange = (mode: 'corporate' | 'genz') => {
+    if (auth.role !== 'admin') return;
+    setUserMode(mode);
+    setLastResult(null);
+  };
+
   const openAuth = (defaultToRegister = false) => {
     setAuthDefaultRegister(defaultToRegister);
     setIsAuthOpen(true);
@@ -301,6 +307,7 @@ export function App() {
           onSignOut={handleSignOut}
           onOpenUpgrade={() => setIsUpgradeOpen(true)}
           userMode={userMode}
+          onUserModeChange={handleUserModeChange}
         />
 
         <div className="workspace-layout">

@@ -9,6 +9,7 @@ interface HeaderProps {
   onSignOut: () => void;
   onOpenUpgrade: () => void;
   userMode: 'corporate' | 'genz';
+  onUserModeChange: (mode: 'corporate' | 'genz') => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -18,6 +19,7 @@ export const Header: React.FC<HeaderProps> = ({
   onSignOut,
   onOpenUpgrade,
   userMode,
+  onUserModeChange,
 }) => {
   return (
     <header className="glass-card app-header">
@@ -30,13 +32,29 @@ export const Header: React.FC<HeaderProps> = ({
       </div>
 
       <div className="header-actions">
-        <span
-          className={`persona-chip ${userMode}`}
-          title="Persona selected at registration"
-        >
-          {userMode === 'genz' ? <Zap size={14} /> : <Briefcase size={14} />}
-          {userMode === 'genz' ? 'Gen Z' : 'Corporate'}
-        </span>
+        {auth.role === 'admin' ? (
+          <div className="admin-mode-switch" aria-label="Translation direction">
+            <button
+              className={userMode === 'corporate' ? 'active corporate' : ''}
+              onClick={() => onUserModeChange('corporate')}
+              title="Corporate to Gen Z"
+            >
+              <Briefcase size={14} /> Corporate → Gen Z
+            </button>
+            <button
+              className={userMode === 'genz' ? 'active genz' : ''}
+              onClick={() => onUserModeChange('genz')}
+              title="Gen Z to Corporate"
+            >
+              <Zap size={14} /> Gen Z → Corporate
+            </button>
+          </div>
+        ) : (
+          <span className={`persona-chip ${userMode}`} title="Persona selected at registration">
+            {userMode === 'genz' ? <Zap size={14} /> : <Briefcase size={14} />}
+            {userMode === 'genz' ? 'Gen Z' : 'Corporate'}
+          </span>
+        )}
 
         {auth.plan === 'paid' ? (
           <span className="badge badge-accent" title="Unlimited translations">

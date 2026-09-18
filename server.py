@@ -400,7 +400,7 @@ def build_pipeline(
 
 class TranslateRequest(BaseModel):
     input_text: str = Field(..., min_length=1, max_length=10000)
-    translation_mode: str = Field("auto")
+    translation_mode: Literal["auto", "corporate_to_genz", "genz_to_corporate"] = "auto"
     custom_api_key: Optional[str] = None
     conversation_id: Optional[str] = None
 
@@ -431,6 +431,17 @@ class AdminApproveRequest(BaseModel):
 
 class AdminRejectRequest(BaseModel):
     reason: str = ""
+
+
+def allowed_translation_mode(store: Any, user_id: str, requested_mode: str) -> str:
+    """Admins choose a direction; other users keep their registered persona."""
+    if store.get_role(user_id) == "admin":
+        return requested_mode
+    return (
+        "genz_to_corporate"
+        if store.get_user_mode(user_id) == "genz"
+        else "corporate_to_genz"
+    )
 
 
 class BillingVerifyRequest(BaseModel):
@@ -667,7 +678,7 @@ def translate(
 
     result: TranslationResult = pipeline.translate(
         user_input=clean_input,
-        translation_mode=req.translation_mode,
+        translation_mode=allowed_translation_mode(store, user_id, req.translation_mode),
         score_threshold=_settings.retriever_score_threshold,
         conversation_context=context,
     )
