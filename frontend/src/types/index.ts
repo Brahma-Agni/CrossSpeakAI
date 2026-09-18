@@ -17,6 +17,7 @@ export interface RetrievedDocument {
 
 export interface TranslationResult {
   translation: string;
+  normal_english: string;
   terms_used: { [key: string]: string }[];
   detected_style: string;
   translation_direction: string;

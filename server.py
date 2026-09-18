@@ -675,7 +675,7 @@ def translate(
     if result.error:
         raise HTTPException(status_code=500, detail=result.error)
 
-    if contains_abusive_language(result.translation):
+    if contains_abusive_language(result.translation) or contains_abusive_language(result.normal_english):
         logger.warning("Blocked an abusive model response for user %s", user_id)
         raise HTTPException(
             status_code=422,
@@ -706,6 +706,7 @@ def translate(
 
     return {
         "translation": result.translation,
+        "normal_english": result.normal_english,
         "terms_used": result.terms_used,
         "detected_style": result.detected_style,
         "translation_direction": result.translation_direction,

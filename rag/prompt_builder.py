@@ -125,12 +125,15 @@ knowledge base to assist with accurate translation:
 7. Do NOT add commentary, disclaimers, or meta-text about the translation.
 8. If confidence is low for a specific term, include it in parentheses \
 as-is and note uncertainty inline using (uncertain).
+9. Also rewrite the original meaning in clear, neutral, everyday English. \
+Do not use corporate jargon or Gen Z slang in this version.
 
 ## OUTPUT FORMAT
 Return ONLY the following JSON object — no markdown fences, no extra text:
 
 {{
   "translation": "<translated text here>",
+  "normal_english": "<clear everyday English version here>",
   "terms_used": [
     {{"original": "<term>", "translated": "<equivalent>", "confidence": "<high|medium|low>"}}
   ],

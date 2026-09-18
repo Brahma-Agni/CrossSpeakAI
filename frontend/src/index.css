@@ -773,6 +773,20 @@ body {
   white-space: pre-wrap;
 }
 
+.normal-english-result {
+  padding: 0.85rem 1rem;
+  border-left: 3px solid var(--accent-primary);
+  border-radius: 0.65rem;
+  background: var(--bg-input);
+}
+
+.normal-english-result p {
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+  line-height: 1.65;
+  white-space: pre-wrap;
+}
+
 .result-section h4 {
   display: flex;
   align-items: center;

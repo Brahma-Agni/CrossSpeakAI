@@ -169,6 +169,13 @@ export const TranslateTab: React.FC<TranslateTabProps> = ({
 
               <div className="result-copy">{lastResult.translation}</div>
 
+              {lastResult.normal_english && (
+                <div className="result-section normal-english-result">
+                  <h4>Normal English</h4>
+                  <p>{lastResult.normal_english}</p>
+                </div>
+              )}
+
               {lastResult.terms_used?.length > 0 && (
                 <div className="result-section">
                   <h4><BookOpen size={15} /> Terms mapped</h4>

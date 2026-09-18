@@ -30,7 +30,8 @@ class _API:
     def generate(self, prompt: str) -> str:
         self.prompt = prompt
         return (
-            '{"translation":"Honestly","terms_used":[],'
+            '{"translation":"Honestly","normal_english":"To be honest",'
+            '"terms_used":[],'
             '"detected_style":"Gen Z","translation_direction":'
             '"Gen Z Slang → Corporate English"}'
         )
@@ -63,6 +64,7 @@ class RAGExtensionTests(unittest.TestCase):
         )
         self.assertIn("Previous input", api.prompt)
         self.assertIn("Previous output", api.prompt)
+        self.assertEqual(result.normal_english, "To be honest")
 
 
 if __name__ == "__main__":

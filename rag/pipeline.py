@@ -43,6 +43,7 @@ class TranslationResult:
     """
 
     translation: str
+    normal_english: str
     terms_used: list[dict[str, str]]
     detected_style: str
     translation_direction: str
@@ -112,6 +113,7 @@ class RAGPipeline:
         if not user_input or not user_input.strip():
             return TranslationResult(
                 translation="",
+                normal_english="",
                 terms_used=[],
                 detected_style="Unknown",
                 translation_direction="N/A",
@@ -155,6 +157,7 @@ class RAGPipeline:
 
             return TranslationResult(
                 translation=parsed.get("translation", raw_response),
+                normal_english=parsed.get("normal_english", ""),
                 terms_used=parsed.get("terms_used", []),
                 detected_style=parsed.get(
                     "detected_style", source_style.value
@@ -170,6 +173,7 @@ class RAGPipeline:
             logger.error("Pipeline error: %s", exc)
             return TranslationResult(
                 translation="",
+                normal_english="",
                 terms_used=[],
                 detected_style="Unknown",
                 translation_direction="N/A",
@@ -219,6 +223,7 @@ class RAGPipeline:
 
         return {
             "translation": raw.strip(),
+            "normal_english": "",
             "terms_used": [],
             "detected_style": "Unknown",
             "translation_direction": "Unknown → Unknown",
